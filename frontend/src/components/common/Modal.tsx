@@ -65,6 +65,24 @@ const Modal: React.FC<ModalProps> = ({
             <div className="px-6 py-4">
               {children}
             </div>
+
+            {/* Footer */}
+            <div className={`px-6 py-4 border-t ${
+              theme === 'dark' 
+                ? 'border-gray-700' 
+                : 'border-gray-200'
+            } flex justify-end`}>
+              <button
+                onClick={onClose}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                  theme === 'dark'
+                    ? 'bg-primary-600 hover:bg-primary-700 text-white'
+                    : 'bg-primary-600 hover:bg-primary-700 text-white'
+                }`}
+              >
+                OK
+              </button>
+            </div>
           </div>
         </div>
       </div>

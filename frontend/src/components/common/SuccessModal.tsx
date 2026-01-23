@@ -57,16 +57,6 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
             </p>
           </div>
         )}
-
-        {/* Botão */}
-        <div className="flex justify-center">
-          <button
-            onClick={onClose}
-            className="px-6 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-lg transition-colors duration-200 font-medium text-sm"
-          >
-            OK
-          </button>
-        </div>
       </div>
     </Modal>
   );
