@@ -119,4 +119,73 @@ export const clienteService = {
   },
 };
 
+// Interfaces para Quartos
+export interface QuartoRequest {
+  numero: string;
+  tipo: string;
+  diaria: number;
+  status: string;
+}
+
+export interface QuartoResponse {
+  id: number;
+  numero: string;
+  tipo: string;
+  diaria: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Serviço de Quartos
+export const quartoService = {
+  // Listar todos os quartos
+  async listarQuartos(): Promise<QuartoResponse[]> {
+    try {
+      const response: AxiosResponse<QuartoResponse[]> = await api.get('/quartos');
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao listar quartos:', error);
+      throw error;
+    }
+  },
+
+  // Buscar quarto por ID
+  async buscarQuartoPorId(id: number): Promise<QuartoResponse> {
+    try {
+      const response: AxiosResponse<QuartoResponse> = await api.get(`/quartos/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar quarto:', error);
+      throw error;
+    }
+  },
+
+  // Atualizar status do quarto
+  async atualizarStatusQuarto(id: number, status: string): Promise<QuartoResponse> {
+    try {
+      // Primeiro busca os dados atuais do quarto
+      const quartoAtual = await this.buscarQuartoPorId(id);
+      
+      // Atualiza apenas o status, mantendo os outros dados
+      const dadosAtualizados = {
+        ...quartoAtual,
+        status: status
+      };
+      
+      console.log('Enviando PUT com todos os dados:', dadosAtualizados);
+      
+      // Envia PUT com todos os dados do quarto para o endpoint de status
+      // baseURL já inclui /api, então não precisa repetir
+      const response: AxiosResponse<QuartoResponse> = await api.put(`/quartos/${id}/status`, dadosAtualizados);
+      
+      console.log('Resposta recebida:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao atualizar status do quarto:', error);
+      throw error;
+    }
+  },
+};
+
 export default api;
