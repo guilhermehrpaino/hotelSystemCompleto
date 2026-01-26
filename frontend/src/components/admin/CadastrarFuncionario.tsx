@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { funcionarioService, FuncionarioRequest } from '../../services/funcionarioApi';
+import { funcionarioService, FuncionarioResponse, FuncionarioRequest } from '../../services/funcionarioApi';
 import ErrorModal from '../common/ErrorModal';
 import SuccessModal from '../common/SuccessModal';
 
-interface EmployeeFormData {
+interface FuncionarioFormData {
   nome: string;
   idade: string;
   cpf: string;
@@ -15,9 +15,26 @@ interface EmployeeFormData {
   salario: string;
 }
 
-const CadastrarFuncionario: React.FC = () => {
+interface FormErrors {
+  nome?: string;
+  idade?: string;
+  cpf?: string;
+  telefone?: string;
+  email?: string;
+  endereco?: string;
+  cargo?: string;
+  salario?: string;
+}
+
+interface CadastrarFuncionarioProps {
+  onSuccess: () => void;
+  modo: 'cadastro' | 'atualizacao';
+  funcionarioParaAtualizar?: FuncionarioResponse | null;
+}
+
+const CadastrarFuncionario: React.FC<CadastrarFuncionarioProps> = ({ onSuccess, modo, funcionarioParaAtualizar }) => {
   const { theme } = useTheme();
-  const [formData, setFormData] = useState<EmployeeFormData>({
+  const [formData, setFormData] = useState<FuncionarioFormData>({
     nome: '',
     idade: '',
     cpf: '',
@@ -27,7 +44,7 @@ const CadastrarFuncionario: React.FC = () => {
     cargo: '',
     salario: ''
   });
-  const [errors, setErrors] = useState<Partial<EmployeeFormData>>({});
+  const [errors, setErrors] = useState<Partial<FuncionarioFormData>>({});
   const [isLoading, setIsLoading] = useState(false);
   
   // Estados para o modal de erro
@@ -41,8 +58,29 @@ const CadastrarFuncionario: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [successDetails, setSuccessDetails] = useState('');
 
+  // Carregar dados do funcionário para atualização
+  useEffect(() => {
+    if (modo === 'atualizacao' && funcionarioParaAtualizar) {
+      setFormData({
+        nome: funcionarioParaAtualizar.nome,
+        idade: funcionarioParaAtualizar.idade.toString(),
+        cpf: funcionarioParaAtualizar.cpf,
+        telefone: funcionarioParaAtualizar.telefone,
+        email: funcionarioParaAtualizar.email,
+        endereco: funcionarioParaAtualizar.endereco,
+        cargo: funcionarioParaAtualizar.cargo,
+        salario: funcionarioParaAtualizar.salario.toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }) // Formata BigDecimal do backend como moeda
+      });
+    }
+  }, [modo, funcionarioParaAtualizar]);
+
   const validateForm = (): boolean => {
-    const newErrors: Partial<EmployeeFormData> = {};
+    const newErrors: Partial<FuncionarioFormData> = {};
 
     if (!formData.nome.trim()) {
       newErrors.nome = 'Nome é obrigatório';
@@ -90,10 +128,10 @@ const CadastrarFuncionario: React.FC = () => {
     if (!formData.salario.trim()) {
       newErrors.salario = 'Salário é obrigatório';
     } else {
-      // Remover formatação para converter para número
-      const salarioNumerico = Number(formData.salario.replace(/[^\d,]/g, '').replace(',', '.'));
+      // Remover formatação para converter para número (BigDecimal compatibility)
+      const salarioNumerico = parseFloat(formData.salario.replace(/[^\d,]/g, '').replace(',', '.'));
       console.log('Salário formatado:', formData.salario);
-      console.log('Salário numérico:', salarioNumerico);
+      console.log('Salário numérico (para BigDecimal):', salarioNumerico);
       
       if (isNaN(salarioNumerico) || salarioNumerico < 999) {
         newErrors.salario = 'Salário deve ser no mínimo R$ 999,00';
@@ -149,7 +187,7 @@ const CadastrarFuncionario: React.FC = () => {
     }));
     
     // Clear error for this field when user starts typing
-    if (errors[name as keyof EmployeeFormData]) {
+    if (errors[name as keyof FuncionarioFormData]) {
       setErrors(prev => ({
         ...prev,
         [name]: ''
@@ -210,35 +248,47 @@ const CadastrarFuncionario: React.FC = () => {
         email: formData.email,
         endereco: formData.endereco,
         cargo: formData.cargo, // Voltado para cargo
-        salario: formData.salario // Envia como string formatada (ex: "R$ 1.500,00")
+        salario: parseFloat(formData.salario.replace(/[^\d,]/g, '').replace(',', '.')) // Converte para number com precisão decimal
       };
 
       // Enviar para a API
-      await funcionarioService.cadastrarFuncionario(funcionarioData);
+      let result;
+      if (modo === 'atualizacao' && funcionarioParaAtualizar) {
+        // Atualizar funcionário existente - PUT
+        result = await funcionarioService.atualizarFuncionario(funcionarioParaAtualizar.id, funcionarioData);
+        showSuccessModal(
+          'Funcionário Atualizado!',
+          `O funcionário ${formData.nome} foi atualizado com sucesso.`,
+          `Cargo: ${formData.cargo} | Salário: ${formData.salario}`
+        );
+      } else {
+        // Cadastrar novo funcionário - POST
+        result = await funcionarioService.cadastrarFuncionario(funcionarioData);
+        showSuccessModal(
+          'Funcionário Cadastrado!',
+          `O funcionário ${formData.nome} foi cadastrado com sucesso.`,
+          `Cargo: ${formData.cargo} | Salário: ${formData.salario}`
+        );
+      }
       
-      // Mostrar modal de sucesso
-      showSuccessModal(
-        'Funcionário Cadastrado!',
-        `O funcionário ${formData.nome} foi cadastrado com sucesso.`,
-        `Cargo: ${formData.cargo} | Salário: ${formData.salario}`
-      );
-      
-      // Reset form
-      setFormData({
-        nome: '',
-        idade: '',
-        cpf: '',
-        telefone: '',
-        email: '',
-        endereco: '',
-        cargo: '',
-        salario: ''
-      });
+      // Reset form apenas no modo cadastro
+      if (modo === 'cadastro') {
+        setFormData({
+          nome: '',
+          idade: '',
+          cpf: '',
+          telefone: '',
+          email: '',
+          endereco: '',
+          cargo: '',
+          salario: ''
+        });
+      }
       
     } catch (error: any) {
-      console.error('Erro ao cadastrar funcionário:', error);
+      console.error(`Erro ao ${modo === 'atualizacao' ? 'atualizar' : 'cadastrar'} funcionário:`, error);
       
-      let errorMessage = 'Erro ao cadastrar funcionário. Tente novamente.';
+      let errorMessage = `Erro ao ${modo === 'atualizacao' ? 'atualizar' : 'cadastrar'} funcionário. Tente novamente.`;
       let errorDetails = '';
       
       // Erros de API/conexão - mostrar modal
@@ -289,9 +339,14 @@ const CadastrarFuncionario: React.FC = () => {
     <div className="max-w-2xl mx-auto p-6">
       <div className="card">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Cadastrar Funcionário</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {modo === 'atualizacao' ? 'Atualizar Funcionário' : 'Cadastrar Funcionário'}
+          </h2>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Preencha os dados do novo funcionário
+            {modo === 'atualizacao' 
+              ? 'Atualize os dados do funcionário selecionado'
+              : 'Preencha os dados do novo funcionário'
+            }
           </p>
         </div>
 
@@ -507,10 +562,10 @@ const CadastrarFuncionario: React.FC = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Cadastrando...
+                  {modo === 'atualizacao' ? 'Atualizando...' : 'Cadastrando...'}
                 </span>
               ) : (
-                'Cadastrar Funcionário'
+                modo === 'atualizacao' ? 'Atualizar Funcionário' : 'Cadastrar Funcionário'
               )}
             </button>
           </div>
@@ -521,7 +576,7 @@ const CadastrarFuncionario: React.FC = () => {
       <ErrorModal
         isOpen={isErrorModalOpen}
         onClose={closeErrorModal}
-        title="Erro ao Cadastrar Funcionário"
+        title={`Erro ao ${modo === 'atualizacao' ? 'Atualizar' : 'Cadastrar'} Funcionário`}
         message={errorMessage}
         details={errorDetails}
       />

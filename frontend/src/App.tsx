@@ -8,7 +8,9 @@ import Layout from './components/Layout';
 import CadastrarCliente from './components/admin/CadastrarCliente';
 import ListaClientes from './components/admin/ListaClientes';
 import CadastrarQuarto from './components/admin/CadastrarQuarto';
+import ListaQuartos from './components/admin/ListaQuartos';
 import CadastrarFuncionario from './components/admin/CadastrarFuncionario';
+import ListaFuncionarios from './components/admin/ListaFuncionarios';
 import AlterarStatusQuarto from './components/admin/AlterarStatusQuarto';
 import Relatorio from './components/admin/Relatorio';
 import './index.css';
@@ -63,17 +65,31 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      <Route path="/admin/quartos" element={
+        <ProtectedRoute>
+          <Layout title="Gestão de Quartos">
+            <ListaQuartos />
+          </Layout>
+        </ProtectedRoute>
+      } />
       <Route path="/admin/cadastrar-quarto" element={
         <ProtectedRoute>
           <Layout title="Cadastrar Quarto">
-            <CadastrarQuarto />
+            <CadastrarQuarto onSuccess={() => {}} modo="cadastro" />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/funcionarios" element={
+        <ProtectedRoute>
+          <Layout title="Gestão de Funcionários">
+            <ListaFuncionarios />
           </Layout>
         </ProtectedRoute>
       } />
       <Route path="/admin/cadastrar-funcionario" element={
         <ProtectedRoute>
           <Layout title="Cadastrar Funcionário">
-            <CadastrarFuncionario />
+            <CadastrarFuncionario onSuccess={() => {}} modo="cadastro" />
           </Layout>
         </ProtectedRoute>
       } />

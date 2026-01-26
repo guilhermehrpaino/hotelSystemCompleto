@@ -17,8 +17,8 @@ const Layout: React.FC<LayoutProps> = ({ children, title }) => {
 
   const adminMenuItems = [
     { id: 'clientes', title: 'Gestão de Clientes', path: '/admin/clientes' },
-    { id: 'cadastrar-quarto', title: 'Cadastrar Quarto', path: '/admin/cadastrar-quarto' },
-    { id: 'cadastrar-funcionario', title: 'Cadastrar Funcionário', path: '/admin/cadastrar-funcionario' },
+    { id: 'quartos', title: 'Gestão de Quartos', path: '/admin/quartos' },
+    { id: 'funcionarios', title: 'Gestão de Funcionários', path: '/admin/funcionarios' },
     { id: 'alterar-status', title: 'Alterar Status Quarto', path: '/admin/alterar-status' },
     { id: 'relatorios', title: 'Relatórios', path: '/admin/relatorios' },
   ];

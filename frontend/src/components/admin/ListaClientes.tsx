@@ -15,6 +15,8 @@ const ListaClientes: React.FC = () => {
   const [showCadastro, setShowCadastro] = useState(false);
   const [showAtualizar, setShowAtualizar] = useState(false);
   const [filtro, setFiltro] = useState<'id' | 'nome-asc' | 'nome-desc'>('id');
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const clientesPorPagina = 12;
   
   // Estados para o modal de erro
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
@@ -37,6 +39,11 @@ const ListaClientes: React.FC = () => {
     aplicarFiltro();
   }, [clientes, filtro]);
 
+  // Resetar página quando o filtro mudar
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [filtro]);
+
   const aplicarFiltro = () => {
     let filtrados = [...clientes];
     
@@ -56,6 +63,32 @@ const ListaClientes: React.FC = () => {
     }
     
     setClientesFiltrados(filtrados);
+  };
+
+  // Calcular clientes da página atual
+  const clientesDaPagina = clientesFiltrados.slice(
+    (paginaAtual - 1) * clientesPorPagina,
+    paginaAtual * clientesPorPagina
+  );
+
+  // Calcular número total de páginas
+  const totalPaginas = Math.ceil(clientesFiltrados.length / clientesPorPagina);
+
+  // Funções de navegação
+  const irParaPagina = (pagina: number) => {
+    setPaginaAtual(pagina);
+  };
+
+  const proximaPagina = () => {
+    if (paginaAtual < totalPaginas) {
+      setPaginaAtual(paginaAtual + 1);
+    }
+  };
+
+  const paginaAnterior = () => {
+    if (paginaAtual > 1) {
+      setPaginaAtual(paginaAtual - 1);
+    }
   };
 
   const carregarClientes = async () => {
@@ -280,7 +313,7 @@ const ListaClientes: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {clientesFiltrados.map((cliente) => (
+            {clientesDaPagina.map((cliente) => (
               <div
                 key={cliente.id}
                 onClick={() => handleSelectCliente(cliente)}
@@ -335,6 +368,66 @@ const ListaClientes: React.FC = () => {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Paginação - Aparece apenas quando há mais de 12 clientes */}
+        {!isLoading && clientesFiltrados.length > clientesPorPagina && (
+          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Mostrando {((paginaAtual - 1) * clientesPorPagina) + 1} a {Math.min(paginaAtual * clientesPorPagina, clientesFiltrados.length)} de {clientesFiltrados.length} clientes
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                {/* Botão Anterior */}
+                <button
+                  onClick={paginaAnterior}
+                  disabled={paginaAtual === 1}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                    paginaAtual === 1
+                      ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+
+                {/* Números das Páginas */}
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((pagina) => (
+                    <button
+                      key={pagina}
+                      onClick={() => irParaPagina(pagina)}
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                        pagina === paginaAtual
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {pagina}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Botão Próximo */}
+                <button
+                  onClick={proximaPagina}
+                  disabled={paginaAtual === totalPaginas}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                    paginaAtual === totalPaginas
+                      ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
