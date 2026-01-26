@@ -6,6 +6,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Layout from './components/Layout';
 import CadastrarCliente from './components/admin/CadastrarCliente';
+import ListaClientes from './components/admin/ListaClientes';
 import CadastrarQuarto from './components/admin/CadastrarQuarto';
 import CadastrarFuncionario from './components/admin/CadastrarFuncionario';
 import AlterarStatusQuarto from './components/admin/AlterarStatusQuarto';
@@ -48,6 +49,13 @@ const AppContent: React.FC = () => {
       } />
       
       {/* Admin Routes */}
+      <Route path="/admin/clientes" element={
+        <ProtectedRoute>
+          <Layout title="Gestão de Clientes">
+            <ListaClientes />
+          </Layout>
+        </ProtectedRoute>
+      } />
       <Route path="/admin/cadastrar-cliente" element={
         <ProtectedRoute>
           <Layout title="Cadastrar Cliente">

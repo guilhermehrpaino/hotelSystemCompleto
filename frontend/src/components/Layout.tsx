@@ -16,7 +16,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title }) => {
   const isAdmin = user?.role === 'ADMIN';
 
   const adminMenuItems = [
-    { id: 'cadastrar-cliente', title: 'Cadastrar Cliente', path: '/admin/cadastrar-cliente' },
+    { id: 'clientes', title: 'Gestão de Clientes', path: '/admin/clientes' },
     { id: 'cadastrar-quarto', title: 'Cadastrar Quarto', path: '/admin/cadastrar-quarto' },
     { id: 'cadastrar-funcionario', title: 'Cadastrar Funcionário', path: '/admin/cadastrar-funcionario' },
     { id: 'alterar-status', title: 'Alterar Status Quarto', path: '/admin/alterar-status' },
