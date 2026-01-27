@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
+import AdminDashboard from './components/admin/Dashboard';
 import Layout from './components/Layout';
 import CadastrarCliente from './components/admin/CadastrarCliente';
 import ListaClientes from './components/admin/ListaClientes';
@@ -45,7 +46,16 @@ const AppContent: React.FC = () => {
       <Route path="/" element={
         <ProtectedRoute>
           <Layout title="Dashboard">
-            <Dashboard />
+            {user?.role === 'ADMIN' ? <AdminDashboard /> : <Dashboard />}
+          </Layout>
+        </ProtectedRoute>
+      } />
+      
+      {/* Admin Dashboard específico */}
+      <Route path="/admin/dashboard" element={
+        <ProtectedRoute>
+          <Layout title="Dashboard Admin">
+            <AdminDashboard />
           </Layout>
         </ProtectedRoute>
       } />
