@@ -14,6 +14,14 @@ import CadastrarFuncionario from './components/admin/CadastrarFuncionario';
 import ListaFuncionarios from './components/admin/ListaFuncionarios';
 import AlterarStatusQuarto from './components/admin/AlterarStatusQuarto';
 import Relatorio from './components/admin/Relatorio';
+import CriarReserva from './components/user/CriarReserva';
+import ConsultarReservas from './components/user/ConsultarReservas';
+import Checkin from './components/user/Checkin';
+import Checkout from './components/user/Checkout';
+import StatusQuartos from './components/user/StatusQuartos';
+import Manutencao from './components/user/Manutencao';
+import Pagamento from './components/user/Pagamento';
+import ConsultarCliente from './components/user/ConsultarCliente';
 import './index.css';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -114,6 +122,64 @@ const AppContent: React.FC = () => {
         <ProtectedRoute>
           <Layout title="Relatórios">
             <Relatorio />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      
+      {/* User Routes */}
+      <Route path="/user/criar-reserva" element={
+        <ProtectedRoute>
+          <Layout title="Criar Reserva">
+            <CriarReserva />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/user/consultar-reservas" element={
+        <ProtectedRoute>
+          <Layout title="Consultar Reservas">
+            <ConsultarReservas />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/user/checkin" element={
+        <ProtectedRoute>
+          <Layout title="Check-in">
+            <Checkin />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/user/checkout" element={
+        <ProtectedRoute>
+          <Layout title="Check-out">
+            <Checkout />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/user/status-quartos" element={
+        <ProtectedRoute>
+          <Layout title="Status dos Quartos">
+            <StatusQuartos />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/user/manutencao" element={
+        <ProtectedRoute>
+          <Layout title="Manutenção">
+            <Manutencao />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/user/pagamento" element={
+        <ProtectedRoute>
+          <Layout title="Pagamento">
+            <Pagamento />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/user/consultar-cliente" element={
+        <ProtectedRoute>
+          <Layout title="Consultar Cliente">
+            <ConsultarCliente />
           </Layout>
         </ProtectedRoute>
       } />

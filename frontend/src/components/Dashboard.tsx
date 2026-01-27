@@ -1,16 +1,53 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { quartoService, clienteService } from '../services/api';
+
+interface UserMenuItem {
+  id: number;
+  title: string;
+  description: string;
+  path: string;
+  icon: string;
+  color: string;
+}
+
+interface AdminMenuItem {
+  id: number;
+  title: string;
+  description: string;
+  path: string;
+}
+
+interface DashboardStats {
+  totalQuartos: number;
+  quartosDisponiveis: number;
+  quartosOcupados: number;
+  reservasHoje: number;
+  checkinsPendentes: number;
+  clientesAtivos: number;
+}
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const navigate = useNavigate();
 
   const isAdmin = user?.role === 'ADMIN';
 
-  const adminMenuItems = [
+  // Estados para dados do dashboard do usuário
+  const [stats, setStats] = useState<DashboardStats>({
+    totalQuartos: 0,
+    quartosDisponiveis: 0,
+    quartosOcupados: 0,
+    reservasHoje: 0,
+    checkinsPendentes: 0,
+    clientesAtivos: 0
+  });
+  const [isLoading, setIsLoading] = useState(false);
+
+  const adminMenuItems: AdminMenuItem[] = [
     { id: 1, title: 'Cadastrar Cliente', description: 'Adicionar novos clientes ao sistema', path: '/admin/cadastrar-cliente' },
     { id: 2, title: 'Cadastrar Quarto', description: 'Cadastrar novos quartos no hotel', path: '/admin/cadastrar-quarto' },
     { id: 3, title: 'Cadastrar Funcionário', description: 'Adicionar usuários ao sistema', path: '/admin/cadastrar-funcionario' },
@@ -18,121 +55,245 @@ const Dashboard: React.FC = () => {
     { id: 5, title: 'Relatórios', description: 'Ver relatórios de ocupação e financeiro', path: '/admin/relatorios' },
   ];
 
-  const userMenuItems = [
-    { id: 1, title: 'Criar Reserva', description: 'Fazer novas reservas para clientes', path: '/user/criar-reserva' },
-    { id: 2, title: 'Consultar Reservas', description: 'Ver reservas existentes', path: '/user/consultar-reservas' },
-    { id: 3, title: 'Cancelar Reserva', description: 'Cancelar reservas pendentes', path: '/user/cancelar-reserva' },
-    { id: 4, title: 'Realizar Check-in', description: 'Registrar entrada de hóspedes', path: '/user/checkin' },
-    { id: 5, title: 'Realizar Check-out', description: 'Registrar saída de hóspedes', path: '/user/checkout' },
-    { id: 6, title: 'Ver Status Quartos', description: 'Verificar disponibilidade', path: '/user/status-quartos' },
-    { id: 7, title: 'Solicitar Manutenção', description: 'Marcar quartos para manutenção', path: '/user/manutencao' },
-    { id: 8, title: 'Registrar Pagamento', description: 'Registrar pagamentos', path: '/user/pagamento' },
-    { id: 9, title: 'Consultar Cliente', description: 'Buscar informações de clientes', path: '/user/consultar-cliente' },
+  const userMenuItems: UserMenuItem[] = [
+    { id: 1, title: 'Criar Reserva', description: 'Fazer novas reservas para clientes', path: '/user/criar-reserva', icon: '📅', color: 'bg-blue-500' },
+    { id: 2, title: 'Consultar Reservas', description: 'Ver reservas existentes', path: '/user/consultar-reservas', icon: '🔍', color: 'bg-green-500' },
+    { id: 3, title: 'Check-in', description: 'Registrar entrada de hóspedes', path: '/user/checkin', icon: '🏨', color: 'bg-purple-500' },
+    { id: 4, title: 'Check-out', description: 'Registrar saída de hóspedes', path: '/user/checkout', icon: '🚪', color: 'bg-orange-500' },
+    { id: 5, title: 'Status Quartos', description: 'Verificar disponibilidade', path: '/user/status-quartos', icon: '🛏️', color: 'bg-cyan-500' },
+    { id: 6, title: 'Manutenção', description: 'Marcar quartos para manutenção', path: '/user/manutencao', icon: '🔧', color: 'bg-red-500' },
+    { id: 7, title: 'Pagamentos', description: 'Registrar pagamentos', path: '/user/pagamento', icon: '💳', color: 'bg-yellow-500' },
+    { id: 8, title: 'Consultar Cliente', description: 'Buscar informações de clientes', path: '/user/consultar-cliente', icon: '👥', color: 'bg-indigo-500' },
   ];
 
   const menuItems = isAdmin ? adminMenuItems : userMenuItems;
+
+  // Carregar dados para o dashboard do usuário
+  useEffect(() => {
+    if (!isAdmin) {
+      carregarDadosDashboard();
+    }
+  }, []);
+
+  const carregarDadosDashboard = async () => {
+    setIsLoading(true);
+    try {
+      const [quartosData, clientesData] = await Promise.all([
+        quartoService.listarQuartos(),
+        clienteService.listarClientes()
+      ]);
+
+      const totalQuartos = quartosData.length;
+      const quartosDisponiveis = quartosData.filter(q => q.status === 'DISPONIVEL').length;
+      const quartosOcupados = quartosData.filter(q => q.status === 'OCUPADO').length;
+      
+      // Simular dados de reservas (você pode ajustar quando tiver a API de reservas)
+      const reservasHoje = Math.floor(Math.random() * 10) + 5;
+      const checkinsPendentes = Math.floor(Math.random() * 5) + 2;
+      const clientesAtivos = clientesData.length;
+
+      setStats({
+        totalQuartos,
+        quartosDisponiveis,
+        quartosOcupados,
+        reservasHoje,
+        checkinsPendentes,
+        clientesAtivos
+      });
+
+    } catch (error) {
+      console.error('Erro ao carregar dados do dashboard:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleCardClick = (path: string) => {
     navigate(path);
   };
 
+  // Componente de Card de Estatística
+  const StatCard: React.FC<{
+    title: string;
+    value: string | number;
+    icon: string;
+    color: string;
+    trend?: string;
+  }> = ({ title, value, icon, color, trend }) => (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow duration-200">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
+          {trend && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{trend}</p>
+          )}
+        </div>
+        <div className={`text-3xl p-3 rounded-full ${color} bg-opacity-10`}>
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (isAdmin) {
+    // Dashboard Admin
+    return (
+      <div className="max-w-7xl mx-auto">
+        {/* Welcome Section */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Bem-vindo, Administrador!
+          </h2>
+          <p className="mt-1 text-gray-600 dark:text-gray-400">
+            Gerencie todo o sistema hoteleiro a partir deste painel.
+          </p>
+        </div>
+
+        {/* Admin Menu Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {menuItems.map((item) => (
+            <div
+              key={item.id}
+              onClick={() => handleCardClick(item.path)}
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200 cursor-pointer hover:scale-105"
+            >
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-blue-500 bg-opacity-10 rounded-lg flex items-center justify-center mr-4">
+                  <span className="text-2xl">⚙️</span>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {item.title}
+                </h3>
+              </div>
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                {item.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Dashboard User
   return (
     <div className="max-w-7xl mx-auto">
       {/* Welcome Section */}
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Bem-vindo{isAdmin ? ', Administrador' : ''}!
+          Bem-vindo ao Sistema!
         </h2>
         <p className="mt-1 text-gray-600 dark:text-gray-400">
-          {isAdmin 
-            ? 'Gerencie todo o sistema hoteleiro a partir deste painel.'
-            : 'Gerencie as operações diárias do hotel.'
-          }
+          Gerencie as operações diárias do hotel de forma rápida e eficiente.
         </p>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="card">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 bg-primary-100 dark:bg-primary-900 rounded-lg p-3">
-              <svg className="h-6 w-6 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Quartos</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">24</p>
-            </div>
-          </div>
-        </div>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <StatCard
+          title="Quartos Disponíveis"
+          value={stats.quartosDisponiveis}
+          icon="🛏️"
+          color="text-green-500"
+          trend={`de ${stats.totalQuartos} totais`}
+        />
+        <StatCard
+          title="Quartos Ocupados"
+          value={stats.quartosOcupados}
+          icon="🏨"
+          color="text-red-500"
+          trend="no momento"
+        />
+        <StatCard
+          title="Reservas Hoje"
+          value={stats.reservasHoje}
+          icon="📅"
+          color="text-blue-500"
+          trend="para hoje"
+        />
+        <StatCard
+          title="Check-ins Pendentes"
+          value={stats.checkinsPendentes}
+          icon="⏰"
+          color="text-orange-500"
+          trend="aguardando"
+        />
+        <StatCard
+          title="Taxa de Ocupação"
+          value={`${stats.totalQuartos > 0 ? Math.round((stats.quartosOcupados / stats.totalQuartos) * 100) : 0}%`}
+          icon="📊"
+          color="text-purple-500"
+          trend="atual"
+        />
+        <StatCard
+          title="Clientes Ativos"
+          value={stats.clientesAtivos}
+          icon="👥"
+          color="text-indigo-500"
+          trend="cadastrados"
+        />
+      </div>
 
-        <div className="card">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 bg-green-100 dark:bg-green-900 rounded-lg p-3">
-              <svg className="h-6 w-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Disponíveis</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">18</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 bg-yellow-100 dark:bg-yellow-900 rounded-lg p-3">
-              <svg className="h-6 w-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6 0 018 0 9 9 0 011-8 0z" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Ocupados</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">4</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 bg-red-100 dark:bg-red-900 rounded-lg p-3">
-              <svg className="h-6 w-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Manutenção</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">2</p>
-            </div>
-          </div>
+      {/* Quick Actions */}
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Ações Rápidas</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <button
+            onClick={() => navigate('/user/criar-reserva')}
+            className="bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-lg transition-colors duration-200 flex flex-col items-center"
+          >
+            <span className="text-2xl mb-2">📅</span>
+            <span className="text-sm font-medium">Nova Reserva</span>
+          </button>
+          <button
+            onClick={() => navigate('/user/checkin')}
+            className="bg-green-500 hover:bg-green-600 text-white p-4 rounded-lg transition-colors duration-200 flex flex-col items-center"
+          >
+            <span className="text-2xl mb-2">🏨</span>
+            <span className="text-sm font-medium">Check-in</span>
+          </button>
+          <button
+            onClick={() => navigate('/user/checkout')}
+            className="bg-orange-500 hover:bg-orange-600 text-white p-4 rounded-lg transition-colors duration-200 flex flex-col items-center"
+          >
+            <span className="text-2xl mb-2">🚪</span>
+            <span className="text-sm font-medium">Check-out</span>
+          </button>
+          <button
+            onClick={() => navigate('/user/status-quartos')}
+            className="bg-cyan-500 hover:bg-cyan-600 text-white p-4 rounded-lg transition-colors duration-200 flex flex-col items-center"
+          >
+            <span className="text-2xl mb-2">🛏️</span>
+            <span className="text-sm font-medium">Status</span>
+          </button>
         </div>
       </div>
 
-      {/* Menu Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {menuItems.map((item) => (
-          <div
-            key={item.id}
-            onClick={() => handleCardClick(item.path)}
-            className="card hover:shadow-md transition-shadow cursor-pointer hover:border-primary-300 dark:hover:border-primary-700 transform hover:scale-[1.02] transition-transform duration-200"
-          >
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <div className="h-10 w-10 bg-primary-100 dark:bg-primary-900 rounded-lg flex items-center justify-center">
-                  <svg className="h-6 w-6 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 002-2M9 5a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 002-2M9 5a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
+      {/* All Functions Grid */}
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Todas as Funções</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {menuItems.map((item) => (
+            <div
+              key={item.id}
+              onClick={() => handleCardClick(item.path)}
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200 cursor-pointer hover:scale-105"
+            >
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-blue-500 bg-opacity-10 rounded-lg flex items-center justify-center mr-4">
+                  <span className="text-2xl">⚙️</span>
                 </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {item.title}
+                </h3>
               </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">{item.title}</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{item.description}</p>
-              </div>
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                {item.description}
+              </p>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
