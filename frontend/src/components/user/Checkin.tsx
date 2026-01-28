@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { quartoService, clienteService } from '../../services/api';
-import { QuartoResponse, ClienteResponse } from '../../services/api';
+import { quartoService, clienteService, reservaService } from '../../services/api';
+import { QuartoResponse, ClienteResponse, ReservaResponse } from '../../services/api';
 
 interface CheckinData {
   reservaId: number;
@@ -16,6 +16,7 @@ const Checkin: React.FC = () => {
   
   const [quartos, setQuartos] = useState<QuartoResponse[]>([]);
   const [clientes, setClientes] = useState<ClienteResponse[]>([]);
+  const [reservas, setReservas] = useState<ReservaResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState<CheckinData>({
@@ -37,13 +38,34 @@ const Checkin: React.FC = () => {
   const carregarDados = async () => {
     setIsLoading(true);
     try {
-      const [quartosData, clientesData] = await Promise.all([
+      console.log('Carregando dados para Check-in...');
+      
+      // Carregar todos os dados
+      const [quartosData, clientesData, reservasData] = await Promise.all([
         quartoService.listarQuartos(),
-        clienteService.listarClientes()
+        clienteService.listarClientes(),
+        reservaService.listarReservas()
       ]);
       
       setQuartos(quartosData);
       setClientes(clientesData);
+      setReservas(reservasData);
+      
+      console.log('Dados carregados:', {
+        quartos: quartosData.length,
+        clientes: clientesData.length,
+        reservas: reservasData.length
+      });
+      
+      // Filtrar reservas que podem fazer check-in hoje
+      const hoje = new Date().toISOString().split('T')[0];
+      const reservasHoje = reservasData.filter(reserva => {
+        const quarto = quartosData.find(q => q.id === reserva.quartoId);
+        return reserva.checkIn === hoje && quarto?.status === 'RESERVADO';
+      });
+      
+      console.log('Reservas para check-in hoje:', reservasHoje.length);
+      
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       setErrorMessage('Não foi possível carregar os dados. Tente novamente.');
@@ -56,13 +78,36 @@ const Checkin: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.quartoId || !formData.clienteId || !formData.dataCheckin) {
-      setErrorMessage('Preencha todos os campos obrigatórios.');
+    if (!formData.reservaId) {
+      setErrorMessage('Selecione uma reserva para fazer check-in.');
       setShowError(true);
       return;
     }
 
-    const quarto = quartos.find(q => q.id === formData.quartoId);
+    if (!formData.dataCheckin) {
+      setErrorMessage('Preencha a data de check-in.');
+      setShowError(true);
+      return;
+    }
+
+    // Encontrar a reserva selecionada
+    const reserva = reservas.find(r => r.id === formData.reservaId);
+    if (!reserva) {
+      setErrorMessage('Reserva não encontrada.');
+      setShowError(true);
+      return;
+    }
+
+    // Verificar se a data de check-in é hoje
+    const hoje = new Date().toISOString().split('T')[0];
+    if (formData.dataCheckin !== hoje) {
+      setErrorMessage('Check-in só pode ser realizado no dia da reserva.');
+      setShowError(true);
+      return;
+    }
+
+    // Verificar status do quarto
+    const quarto = quartos.find(q => q.id === reserva.quartoId);
     if (!quarto) {
       setErrorMessage('Quarto não encontrado.');
       setShowError(true);
@@ -70,24 +115,55 @@ const Checkin: React.FC = () => {
     }
 
     if (quarto.status !== 'RESERVADO') {
-      setErrorMessage('Check-in só pode ser realizado em quartos reservados.');
+      setErrorMessage(`Check-in não pode ser realizado. Status atual do quarto: ${quarto.status}`);
       setShowError(true);
       return;
     }
 
     setIsLoading(true);
     try {
-      // Simulação de check-in (você pode ajustar quando tiver a API)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Fazer check-in - backend deve atualizar status do quarto automaticamente
+      const reservaAtualizada = await reservaService.fazerCheckIn(formData.reservaId);
       
       setShowSuccess(true);
       setTimeout(() => {
-        navigate('/user/status-quartos');
+        navigate('/user/consultar-reservas');
       }, 2000);
       
-    } catch (error) {
-      console.error('Erro ao realizar check-in:', error);
-      setErrorMessage('Não foi possível realizar o check-in. Tente novamente.');
+    } catch (error: any) {
+      console.error('Erro ao fazer check-in:', error);
+      
+      // Tratar diferentes tipos de erro
+      if (error.response) {
+        const status = error.response.status;
+        const message = error.response.data?.message || 'Erro ao fazer check-in';
+        
+        console.log('Erro da API:', { status, message });
+        
+        switch (status) {
+          case 400:
+            setErrorMessage(`Dados inválidos: ${message}`);
+            break;
+          case 404:
+            setErrorMessage('Reserva não encontrada.');
+            break;
+          case 409:
+            setErrorMessage('Check-in já realizado para esta reserva.');
+            break;
+          case 500:
+            setErrorMessage('Erro interno do servidor. Tente novamente mais tarde.');
+            break;
+          default:
+            setErrorMessage(`Erro ao fazer check-in: ${message}`);
+        }
+      } else if (error.request) {
+        console.log('Erro de conexão');
+        setErrorMessage('Erro de conexão. Verifique sua internet e tente novamente.');
+      } else {
+        console.log('Erro desconhecido');
+        setErrorMessage('Não foi possível fazer check-in. Tente novamente.');
+      }
+      
       setShowError(true);
     } finally {
       setIsLoading(false);
@@ -164,103 +240,96 @@ const Checkin: React.FC = () => {
 
       <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Quarto */}
-          <div>
+          {/* Reserva */}
+          <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Quarto *
+              Reserva para Check-in *
             </label>
             <select
-              value={formData.quartoId}
-              onChange={(e) => setFormData(prev => ({ ...prev, quartoId: parseInt(e.target.value) }))}
+              value={formData.reservaId}
+              onChange={(e) => {
+                const reservaId = parseInt(e.target.value);
+                setFormData(prev => ({ ...prev, reservaId }));
+                
+                // Auto-preencher dados da reserva
+                if (reservaId > 0) {
+                  const reserva = reservas.find(r => r.id === reservaId);
+                  if (reserva) {
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      reservaId,
+                      quartoId: reserva.quartoId,
+                      clienteId: reserva.clienteId
+                    }));
+                  }
+                }
+              }}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               required
             >
-              <option value="">Selecione um quarto</option>
-              {quartos
-                .filter(q => q.status === 'RESERVADO')
-                .map(quarto => (
-                  <option key={quarto.id} value={quarto.id}>
-                    {quarto.numero} - {quarto.tipo}
-                  </option>
-                ))}
+              <option value="">Selecione uma reserva</option>
+              {reservas
+                .filter(reserva => {
+                  const quarto = quartos.find(q => q.id === reserva.quartoId);
+                  const hoje = new Date().toISOString().split('T')[0];
+                  return reserva.checkIn === hoje && quarto?.status === 'RESERVADO';
+                })
+                .map(reserva => {
+                  const quarto = quartos.find(q => q.id === reserva.quartoId);
+                  return (
+                    <option key={reserva.id} value={reserva.id}>
+                      Reserva #{reserva.id} - Quarto {quarto?.numero} - {reserva.clienteNome} - {reserva.checkIn}
+                    </option>
+                  );
+                })}
             </select>
-            {quartos.filter(q => q.status === 'RESERVADO').length === 0 && (
+            {reservas.filter(reserva => {
+              const quarto = quartos.find(q => q.id === reserva.quartoId);
+              const hoje = new Date().toISOString().split('T')[0];
+              return reserva.checkIn === hoje && quarto?.status === 'RESERVADO';
+            }).length === 0 && (
               <p className="text-sm text-yellow-500 mt-1">
-                Nenhum quarto reservado disponível para check-in.
+                Nenhuma reserva disponível para check-in hoje.
               </p>
             )}
           </div>
 
-          {/* Cliente */}
+          {/* Data de Check-in */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Cliente *
-            </label>
-            <select
-              value={formData.clienteId}
-              onChange={(e) => setFormData(prev => ({ ...prev, clienteId: parseInt(e.target.value) }))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-              required
-            >
-              <option value="">Selecione um cliente</option>
-              {clientes.map(cliente => (
-                <option key={cliente.id} value={cliente.id}>
-                  {cliente.nome} - {cliente.cpf}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Data Check-in */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Data Check-in *
+              Data de Check-in *
             </label>
             <input
               type="date"
               value={formData.dataCheckin}
               onChange={(e) => setFormData(prev => ({ ...prev, dataCheckin: e.target.value }))}
-              max={new Date().toISOString().split('T')[0]}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               required
             />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Apenas check-ins no dia da reserva são permitidos.
+            </p>
           </div>
 
-          {/* ID da Reserva (simulado) */}
+          {/* Observações */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              ID da Reserva
+              Observações
             </label>
-            <input
-              type="number"
-              value={formData.reservaId}
-              onChange={(e) => setFormData(prev => ({ ...prev, reservaId: parseInt(e.target.value) }))}
-              placeholder="Opcional - preencha se tiver o ID da reserva"
+            <textarea
+              value={formData.observacoes}
+              onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
+              placeholder="Observações sobre o check-in (opcional)"
+              rows={3}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
         </div>
 
-        {/* Observações */}
-        <div className="mt-6">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Observações
-          </label>
-          <textarea
-            value={formData.observacoes}
-            onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
-            rows={4}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-            placeholder="Informações adicionais sobre o check-in..."
-          />
-        </div>
-
-        {/* Informações do Check-in */}
-        {formData.quartoId && (
-          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg border border-blue-200 dark:border-blue-700">
-            <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-              📋 Informações do Check-in
-            </h3>
+        {/* Resumo do Check-in */}
+        {formData.reservaId > 0 && (
+          <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Resumo do Check-in</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-gray-600 dark:text-gray-400">Quarto:</span>
