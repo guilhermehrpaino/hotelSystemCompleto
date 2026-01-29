@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { quartoService, clienteService } from '../../services/api';
-import { QuartoResponse, ClienteResponse } from '../../services/api';
+import { quartoService, clienteService, reservaService } from '../../services/api';
+import { QuartoResponse, ClienteResponse, ReservaResponse } from '../../services/api';
+import { 
+  converterParaBrasilia, 
+  formatarDataInput, 
+  formatarDataBrasil, 
+  getDataAtualBrasilia, 
+  getDataAtualInput,
+  calcularDiferencaDias,
+  adicionarDias,
+  ehHoje,
+  ehPosteriorHoje
+} from '../../utils/dateUtils';
 
 interface CheckoutData {
   quartoId: number;
@@ -10,8 +21,6 @@ interface CheckoutData {
   hospedes: number;
   diarias: number;
   valorTotal: number;
-  valorPago: number;
-  metodoPagamento: string;
   observacoes: string;
 }
 
@@ -20,21 +29,19 @@ const Checkout: React.FC = () => {
   
   const [quartos, setQuartos] = useState<QuartoResponse[]>([]);
   const [clientes, setClientes] = useState<ClienteResponse[]>([]);
+  const [reservas, setReservas] = useState<ReservaResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState<CheckoutData>({
     quartoId: 0,
     clienteId: 0,
-    dataCheckout: new Date().toISOString().split('T')[0],
+    dataCheckout: getDataAtualInput(),
     hospedes: 1,
     diarias: 1,
     valorTotal: 0,
-    valorPago: 0,
-    metodoPagamento: 'dinheiro',
     observacoes: ''
   });
 
-  const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -46,16 +53,64 @@ const Checkout: React.FC = () => {
     calcularValorTotal();
   }, [formData.quartoId, formData.diarias, formData.hospedes]);
 
+  // Auto-preencher cliente quando o quarto é selecionado
+  useEffect(() => {
+    if (formData.quartoId) {
+      const clienteHospedado = getClienteHospedado(formData.quartoId);
+      const reservaAtiva = getReservaAtiva(formData.quartoId);
+      
+      if (clienteHospedado && reservaAtiva) {
+        // Usar a data de check-out prevista da reserva
+        const dataCheckout = reservaAtiva.checkOut;
+        
+        setFormData(prev => ({
+          ...prev,
+          clienteId: clienteHospedado.id,
+          hospedes: reservaAtiva.numeroHospedes, // Usa o número de hóspedes da reserva
+          dataCheckout: dataCheckout // Usa data prevista da reserva
+        }));
+      }
+    } else {
+      // Resetar data quando não há quarto selecionado (data atual em Brasília)
+      setFormData(prev => ({
+        ...prev,
+        clienteId: 0,
+        hospedes: 1,
+        dataCheckout: getDataAtualInput()
+      }));
+    }
+  }, [formData.quartoId]);
+
+  // Calcular diárias automaticamente quando a data de check-out mudar
+  useEffect(() => {
+    if (formData.quartoId && formData.dataCheckout) {
+      const reservaAtiva = getReservaAtiva(formData.quartoId);
+      if (reservaAtiva) {
+        // Calcular diferença em dias usando função global
+        const diarias = calcularDiferencaDias(reservaAtiva.checkIn, formData.dataCheckout);
+        
+        // Mínimo 1 diária
+        setFormData(prev => ({ ...prev, diarias: Math.max(1, diarias) }));
+      }
+    }
+  }, [formData.quartoId, formData.dataCheckout]);
+
   const carregarDados = async () => {
     setIsLoading(true);
     try {
-      const [quartosData, clientesData] = await Promise.all([
+      // Carregar todos os dados
+      const [quartosData, clientesData, reservasData] = await Promise.all([
         quartoService.listarQuartos(),
-        clienteService.listarClientes()
+        clienteService.listarClientes(),
+        reservaService.listarReservas()
       ]);
       
-      setQuartos(quartosData);
+      // Filtrar apenas quartos OCUPADOS
+      const quartosOcupados = quartosData.filter(quarto => quarto.status === 'OCUPADO');
+      
+      setQuartos(quartosOcupados);
       setClientes(clientesData);
+      setReservas(reservasData);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       setErrorMessage('Não foi possível carregar os dados. Tente novamente.');
@@ -63,6 +118,19 @@ const Checkout: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Função para buscar o cliente hospedado no quarto
+  const getClienteHospedado = (quartoId: number): ClienteResponse | null => {
+    const reserva = reservas.find(r => r.quartoId === quartoId && r.status === 'ATIVA');
+    if (!reserva) return null;
+    
+    return clientes.find(c => c.id === reserva.clienteId) || null;
+  };
+
+  // Função para buscar a reserva ativa do quarto
+  const getReservaAtiva = (quartoId: number): ReservaResponse | null => {
+    return reservas.find(r => r.quartoId === quartoId && r.status === 'ATIVA') || null;
   };
 
   const calcularValorTotal = () => {
@@ -84,12 +152,6 @@ const Checkout: React.FC = () => {
       return;
     }
 
-    if (formData.valorPago < formData.valorTotal) {
-      setErrorMessage('O valor pago deve ser maior ou igual ao valor total.');
-      setShowError(true);
-      return;
-    }
-
     const quarto = quartos.find(q => q.id === formData.quartoId);
     if (!quarto) {
       setErrorMessage('Quarto não encontrado.');
@@ -103,15 +165,78 @@ const Checkout: React.FC = () => {
       return;
     }
 
+    // Buscar a reserva ativa para enviar os dados
+    const reservaAtiva = getReservaAtiva(formData.quartoId);
+    if (!reservaAtiva) {
+      setErrorMessage('Reserva ativa não encontrada para este quarto.');
+      setShowError(true);
+      return;
+    }
+
+    // Validar data de check-out
+    if (calcularDiferencaDias(reservaAtiva.checkIn, formData.dataCheckout) <= 0) {
+      setErrorMessage(`Data de check-out (${formData.dataCheckout}) deve ser posterior ao check-in (${formatarDataBrasil(reservaAtiva.checkIn)}).`);
+      setShowError(true);
+      return;
+    }
+
+    // Validar se data de check-out não é anterior à data prevista
+    if (formData.dataCheckout < reservaAtiva.checkOut) {
+      setErrorMessage(`Data de check-out (${formData.dataCheckout}) não pode ser anterior à data prevista (${formatarDataBrasil(reservaAtiva.checkOut)}).`);
+      setShowError(true);
+      return;
+    }
+
+    // Validar data futura
+    if (ehPosteriorHoje(formData.dataCheckout)) {
+      setErrorMessage('Data de check-out não pode ser futura.');
+      setShowError(true);
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Simulação de check-out (você pode ajustar quando tiver a API)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Preparar dados para enviar para a API
+      const checkoutData = {
+        reservaId: reservaAtiva.id,
+        quartoId: formData.quartoId,
+        clienteId: formData.clienteId,
+        dataCheckout: formData.dataCheckout,
+        diarias: formData.diarias,
+        valorTotal: formData.valorTotal,
+        observacoes: formData.observacoes
+      };
+
+      console.log('🔄 Iniciando processo de check-out...');
+      console.log('📋 Dados do checkout:', checkoutData);
+      console.log('🏨 ID da reserva:', reservaAtiva.id);
+      console.log('🏠 ID do quarto:', formData.quartoId);
+
+      // Fazer check-out (atualizar status da reserva para FINALIZADA)
+      console.log('⬆️ Enviando PUT para /reservas/' + reservaAtiva.id);
+      const reservaResponse = await reservaService.fazerCheckOut(reservaAtiva.id);
+      console.log('✅ Reserva atualizada:', reservaResponse);
       
-      setShowSuccess(true);
-      setTimeout(() => {
-        navigate('/user/status-quartos');
-      }, 2000);
+      // Atualizar status do quarto para DISPONIVEL
+      console.log('🏠 Enviando PUT para /quartos/' + formData.quartoId + '/status');
+      const quartoResponse = await quartoService.atualizarStatusQuarto(formData.quartoId, 'DISPONIVEL');
+      console.log('✅ Quarto atualizado:', quartoResponse);
+      
+      // Redirecionar para tela de pagamento com os dados
+      navigate('/user/pagamento', { 
+        state: { 
+          checkoutData: {
+            reservaId: reservaAtiva.id,
+            quartoId: formData.quartoId,
+            clienteId: formData.clienteId,
+            clienteNome: getClienteHospedado(formData.quartoId)?.nome,
+            quartoNumero: quartos.find(q => q.id === formData.quartoId)?.numero,
+            dataCheckout: formData.dataCheckout,
+            diarias: formData.diarias,
+            valorTotal: formData.valorTotal
+          }
+        }
+      });
       
     } catch (error) {
       console.error('Erro ao realizar check-out:', error);
@@ -145,27 +270,6 @@ const Checkout: React.FC = () => {
           Registre a saída de hóspedes e finalize a estadia.
         </p>
       </div>
-
-      {/* Success Modal */}
-      {showSuccess && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md mx-4">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Check-out Realizado com Sucesso!
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400">
-                O check-out foi registrado e você será redirecionado para a lista de quartos.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Error Modal */}
       {showError && (
@@ -228,19 +332,18 @@ const Checkout: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Cliente *
             </label>
-            <select
-              value={formData.clienteId}
-              onChange={(e) => setFormData(prev => ({ ...prev, clienteId: parseInt(e.target.value) }))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-              required
-            >
-              <option value="">Selecione um cliente</option>
-              {clientes.map(cliente => (
-                <option key={cliente.id} value={cliente.id}>
-                  {cliente.nome} - {cliente.cpf}
-                </option>
-              ))}
-            </select>
+            <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+              {formData.quartoId ? (
+                (() => {
+                  const clienteHospedado = getClienteHospedado(formData.quartoId);
+                  return clienteHospedado 
+                    ? `${clienteHospedado.nome} - ${clienteHospedado.cpf}`
+                    : 'Cliente não encontrado';
+                })()
+              ) : (
+                'Selecione um quarto para ver o cliente'
+              )}
+            </div>
           </div>
 
           {/* Data Check-out */}
@@ -252,10 +355,34 @@ const Checkout: React.FC = () => {
               type="date"
               value={formData.dataCheckout}
               onChange={(e) => setFormData(prev => ({ ...prev, dataCheckout: e.target.value }))}
-              max={new Date().toISOString().split('T')[0]}
+              min={(() => {
+                if (formData.quartoId) {
+                  const reservaAtiva = getReservaAtiva(formData.quartoId);
+                  if (reservaAtiva) {
+                    // Data mínima = data de check-out prevista da reserva
+                    return reservaAtiva.checkOut;
+                  }
+                }
+                // Data atual em Brasília
+                return getDataAtualInput();
+              })()}
+              max={getDataAtualInput()}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               required
             />
+            {formData.quartoId && (() => {
+              const reservaAtiva = getReservaAtiva(formData.quartoId);
+              if (reservaAtiva) {
+                if (calcularDiferencaDias(reservaAtiva.checkIn, formData.dataCheckout) <= 0) {
+                  return (
+                    <p className="text-xs text-red-500 mt-1">
+                      ⚠️ Data de check-out deve ser posterior ao check-in ({formatarDataBrasil(reservaAtiva.checkIn)})
+                    </p>
+                  );
+                }
+              }
+              return null;
+            })()}
           </div>
 
           {/* Número de Hóspedes */}
@@ -266,10 +393,8 @@ const Checkout: React.FC = () => {
             <input
               type="number"
               value={formData.hospedes}
-              onChange={(e) => setFormData(prev => ({ ...prev, hospedes: parseInt(e.target.value) }))}
-              min="1"
-              max="10"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              readOnly
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
               required
             />
           </div>
@@ -282,30 +407,21 @@ const Checkout: React.FC = () => {
             <input
               type="number"
               value={formData.diarias}
-              onChange={(e) => setFormData(prev => ({ ...prev, diarias: parseInt(e.target.value) }))}
-              min="1"
-              max="30"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              readOnly
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
               required
             />
-          </div>
-
-          {/* Método de Pagamento */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Método de Pagamento *
-            </label>
-            <select
-              value={formData.metodoPagamento}
-              onChange={(e) => setFormData(prev => ({ ...prev, metodoPagamento: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-              required
-            >
-              <option value="dinheiro">Dinheiro</option>
-              <option value="cartao">Cartão</option>
-              <option value="pix">PIX</option>
-              <option value="transferencia">Transferência</option>
-            </select>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Calculado automaticamente: {(() => {
+                if (formData.quartoId) {
+                  const reservaAtiva = getReservaAtiva(formData.quartoId);
+                  if (reservaAtiva) {
+                    return `${formatarDataBrasil(reservaAtiva.checkIn)} → ${formatarDataBrasil(reservaAtiva.checkOut)} (previsto)`;
+                  }
+                }
+                return 'Selecione quarto';
+              })()}
+            </p>
           </div>
 
           {/* Valor Total */}
@@ -318,22 +434,6 @@ const Checkout: React.FC = () => {
               value={formatarMoeda(formData.valorTotal)}
               readOnly
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 dark:text-gray-300"
-            />
-          </div>
-
-          {/* Valor Pago */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Valor Pago *
-            </label>
-            <input
-              type="number"
-              value={formData.valorPago}
-              onChange={(e) => setFormData(prev => ({ ...prev, valorPago: parseFloat(e.target.value) }))}
-              min="0"
-              step="0.01"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-              required
             />
           </div>
         </div>
@@ -352,32 +452,62 @@ const Checkout: React.FC = () => {
           />
         </div>
 
-        {/* Resumo Financeiro */}
-        {formData.valorTotal > 0 && (
-          <div className="mt-6 p-4 bg-green-50 dark:bg-green-900 rounded-lg border border-green-200 dark:border-green-700">
-            <h3 className="text-sm font-semibold text-green-900 dark:text-green-100 mb-2">
-              💰 Resumo Financeiro
+        {/* Resumo da Reserva */}
+        {formData.quartoId && (
+          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg border border-blue-200 dark:border-blue-700">
+            <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+              📋 Resumo da Reserva Ativa
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <span className="text-gray-600 dark:text-gray-400">Valor Total:</span>
-                <span className="ml-2 font-bold text-gray-900 dark:text-white">
-                  {formatarMoeda(formData.valorTotal)}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-600 dark:text-gray-400">Valor Pago:</span>
-                <span className="ml-2 font-bold text-green-600 dark:text-green-400">
-                  {formatarMoeda(formData.valorPago)}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-600 dark:text-gray-400">Troco:</span>
-                <span className="ml-2 font-bold text-blue-600 dark:text-blue-400">
-                  {formatarMoeda(formData.valorPago - formData.valorTotal)}
-                </span>
-              </div>
-            </div>
+            {(() => {
+              const reservaAtiva = getReservaAtiva(formData.quartoId);
+              const clienteHospedado = getClienteHospedado(formData.quartoId);
+              const quarto = quartos.find(q => q.id === formData.quartoId);
+              
+              if (!reservaAtiva || !clienteHospedado || !quarto) {
+                return <p className="text-blue-700 dark:text-blue-300">Reserva não encontrada</p>;
+              }
+              
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-blue-700 dark:text-blue-300">Cliente:</span>
+                    <span className="ml-2 font-bold text-blue-900 dark:text-blue-100">
+                      {clienteHospedado.nome}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700 dark:text-blue-300">Quarto:</span>
+                    <span className="ml-2 font-bold text-blue-900 dark:text-blue-100">
+                      {quarto.numero} - {quarto.tipo}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700 dark:text-blue-300">Check-in:</span>
+                    <span className="ml-2 font-bold text-blue-900 dark:text-blue-100">
+                      {formatarDataBrasil(reservaAtiva.checkIn)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700 dark:text-blue-300">Check-out Previsto:</span>
+                    <span className="ml-2 font-bold text-blue-900 dark:text-blue-100">
+                      {formatarDataBrasil(reservaAtiva.checkOut)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700 dark:text-blue-300">Diárias:</span>
+                    <span className="ml-2 font-bold text-blue-900 dark:text-blue-100">
+                      {formData.diarias} ({formData.diarias === 1 ? 'dia' : 'dias'})
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700 dark:text-blue-300">Hóspedes:</span>
+                    <span className="ml-2 font-bold text-blue-900 dark:text-blue-100">
+                      {formData.hospedes}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -395,7 +525,7 @@ const Checkout: React.FC = () => {
             disabled={isLoading || quartos.filter(q => q.status === 'OCUPADO').length === 0}
             className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Processando...' : 'Realizar Check-out'}
+            {isLoading ? 'Processando...' : 'Confirmar Check-out'}
           </button>
         </div>
       </form>

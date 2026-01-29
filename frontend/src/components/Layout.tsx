@@ -31,7 +31,6 @@ const Layout: React.FC<LayoutProps> = ({ children, title }) => {
     { id: 'checkout', title: 'Realizar Check-out', path: '/user/checkout' },
     { id: 'status-quartos', title: 'Ver Status Quartos', path: '/user/status-quartos' },
     { id: 'manutencao', title: 'Solicitar Manutenção', path: '/user/manutencao' },
-    { id: 'pagamento', title: 'Registrar Pagamento', path: '/user/pagamento' },
     { id: 'consultar-cliente', title: 'Consultar Cliente', path: '/user/consultar-cliente' },
   ];
 

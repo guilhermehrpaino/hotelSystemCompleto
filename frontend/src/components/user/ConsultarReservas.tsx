@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { formatarDataBrasil } from '../../utils/dateUtils';
 import { reservaService, quartoService } from '../../services/api';
 import { ReservaResponse, QuartoResponse } from '../../services/api';
 
@@ -11,6 +12,8 @@ const ConsultarReservas: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
   const [termoBusca, setTermoBusca] = useState<string>('');
+  const [dataInicio, setDataInicio] = useState<string>('');
+  const [dataFim, setDataFim] = useState<string>('');
   const [showError, setShowError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [atualizandoStatus, setAtualizandoStatus] = useState(false);
@@ -247,7 +250,7 @@ const ConsultarReservas: React.FC = () => {
     // Se reserva está RESERVADA e hoje é dia de check-in → Check-in
     const condicaoCheckIn = statusReserva === 'RESERVADA' && isHoje && statusQuarto === 'RESERVADO';
     
-    // Se reserva está ATIVA e quarto está OCUPADO → Check-out e Pagar
+    // Se reserva está ATIVA e quarto está OCUPADO → Check-out
     const condicaoAtiva = statusReserva === 'ATIVA' && statusQuarto === 'OCUPADO';
     
     // Se reserva está RESERVADA → Cancelar
@@ -295,17 +298,11 @@ const ConsultarReservas: React.FC = () => {
 
     // Se reserva está ATIVA (cliente já fez check-in)
     if (condicaoAtiva) {
-      console.log('✅ ADICIONANDO AÇÕES: Check-out e Pagar');
+      console.log('✅ ADICIONANDO AÇÃO: Check-out');
       acoes.push({
         label: 'Check-out',
         action: () => navigate('/user/checkout'),
         color: 'text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300'
-      });
-      
-      acoes.push({
-        label: 'Pagar',
-        action: () => navigate('/user/pagamento'),
-        color: 'text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300'
       });
     }
 
@@ -346,7 +343,16 @@ const ConsultarReservas: React.FC = () => {
       reserva.clienteNome?.toLowerCase().includes(termoBusca.toLowerCase()) ||
       reserva.quartoNumero?.toLowerCase().includes(termoBusca.toLowerCase());
     
-    return statusMatch && buscaMatch;
+    // Filtro por período de check-in
+    let dataMatch = true;
+    if (dataInicio) {
+      dataMatch = dataMatch && reserva.checkIn >= dataInicio;
+    }
+    if (dataFim) {
+      dataMatch = dataMatch && reserva.checkIn <= dataFim;
+    }
+    
+    return statusMatch && buscaMatch && dataMatch;
   });
 
   const formatarMoeda = (valor: number) => {
@@ -354,7 +360,7 @@ const ConsultarReservas: React.FC = () => {
   };
 
   const formatarData = (data: string) => {
-    return new Date(data).toLocaleDateString('pt-BR');
+    return formatarDataBrasil(data);
   };
 
   if (isLoading) {
@@ -448,7 +454,7 @@ const ConsultarReservas: React.FC = () => {
 
       {/* Filtros */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Buscar
@@ -459,6 +465,32 @@ const ConsultarReservas: React.FC = () => {
               onChange={(e) => setTermoBusca(e.target.value)}
               placeholder="Cliente, quarto ou tipo..."
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Data inicial
+            </label>
+            <input
+              type="date"
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              placeholder="Início do período"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Data final
+            </label>
+            <input
+              type="date"
+              value={dataFim}
+              onChange={(e) => setDataFim(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              placeholder="Fim do período"
             />
           </div>
           
@@ -484,6 +516,8 @@ const ConsultarReservas: React.FC = () => {
               onClick={() => {
                 setFiltroStatus('todos');
                 setTermoBusca('');
+                setDataInicio('');
+                setDataFim('');
               }}
               className="w-full px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors duration-200"
             >

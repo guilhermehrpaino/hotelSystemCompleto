@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { quartoService, clienteService, reservaService } from '../../services/api';
 import { QuartoResponse, ClienteResponse, ReservaResponse } from '../../services/api';
+import { ehHoje, formatarDataBrasil, getDataAtualInput } from '../../utils/dateUtils';
 
 interface CheckinData {
   reservaId: number;
@@ -58,10 +59,9 @@ const Checkin: React.FC = () => {
       });
       
       // Filtrar reservas que podem fazer check-in hoje
-      const hoje = new Date().toISOString().split('T')[0];
       const reservasHoje = reservasData.filter(reserva => {
         const quarto = quartosData.find(q => q.id === reserva.quartoId);
-        return reserva.checkIn === hoje && quarto?.status === 'RESERVADO';
+        return ehHoje(reserva.checkIn) && quarto?.status === 'RESERVADO';
       });
       
       console.log('Reservas para check-in hoje:', reservasHoje.length);
@@ -99,8 +99,7 @@ const Checkin: React.FC = () => {
     }
 
     // Verificar se a data de check-in é hoje
-    const hoje = new Date().toISOString().split('T')[0];
-    if (formData.dataCheckin !== hoje) {
+    if (!ehHoje(formData.dataCheckin)) {
       setErrorMessage('Check-in só pode ser realizado no dia da reserva.');
       setShowError(true);
       return;
@@ -271,22 +270,20 @@ const Checkin: React.FC = () => {
               {reservas
                 .filter(reserva => {
                   const quarto = quartos.find(q => q.id === reserva.quartoId);
-                  const hoje = new Date().toISOString().split('T')[0];
-                  return reserva.checkIn === hoje && quarto?.status === 'RESERVADO';
+                  return ehHoje(reserva.checkIn) && quarto?.status === 'RESERVADO';
                 })
                 .map(reserva => {
                   const quarto = quartos.find(q => q.id === reserva.quartoId);
                   return (
                     <option key={reserva.id} value={reserva.id}>
-                      Reserva #{reserva.id} - Quarto {quarto?.numero} - {reserva.clienteNome} - {reserva.checkIn}
+                      {reserva.clienteNome} - Quarto {quarto?.numero} ({formatarDataBrasil(reserva.checkIn)})
                     </option>
                   );
                 })}
             </select>
             {reservas.filter(reserva => {
               const quarto = quartos.find(q => q.id === reserva.quartoId);
-              const hoje = new Date().toISOString().split('T')[0];
-              return reserva.checkIn === hoje && quarto?.status === 'RESERVADO';
+              return ehHoje(reserva.checkIn) && quarto?.status === 'RESERVADO';
             }).length === 0 && (
               <p className="text-sm text-yellow-500 mt-1">
                 Nenhuma reserva disponível para check-in hoje.
@@ -346,7 +343,7 @@ const Checkin: React.FC = () => {
               <div>
                 <span className="text-gray-600 dark:text-gray-400">Data:</span>
                 <span className="ml-2 text-gray-900 dark:text-white">
-                  {new Date(formData.dataCheckin).toLocaleDateString('pt-BR')}
+                  {formatarDataBrasil(formData.dataCheckin)}
                 </span>
               </div>
               <div>

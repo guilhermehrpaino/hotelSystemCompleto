@@ -64,8 +64,7 @@ const Dashboard: React.FC = () => {
     { id: 4, title: 'Check-out', description: 'Registrar saída de hóspedes', path: '/user/checkout', icon: '🚪', color: 'bg-orange-500' },
     { id: 5, title: 'Status Quartos', description: 'Verificar disponibilidade', path: '/user/status-quartos', icon: '🛏️', color: 'bg-cyan-500' },
     { id: 6, title: 'Manutenção', description: 'Marcar quartos para manutenção', path: '/user/manutencao', icon: '🔧', color: 'bg-red-500' },
-    { id: 7, title: 'Pagamentos', description: 'Registrar pagamentos', path: '/user/pagamento', icon: '💳', color: 'bg-yellow-500' },
-    { id: 8, title: 'Consultar Cliente', description: 'Buscar informações de clientes', path: '/user/consultar-cliente', icon: '👥', color: 'bg-indigo-500' },
+    { id: 7, title: 'Consultar Cliente', description: 'Buscar informações de clientes', path: '/user/consultar-cliente', icon: '👥', color: 'bg-indigo-500' },
   ];
 
   const menuItems = isAdmin ? adminMenuItems : userMenuItems;

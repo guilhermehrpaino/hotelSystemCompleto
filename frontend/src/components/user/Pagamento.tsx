@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { clienteService } from '../../services/api';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { clienteService, pagamentoService } from '../../services/api';
 import { ClienteResponse } from '../../services/api';
+
+interface CheckoutData {
+  reservaId: number;
+  quartoId: number;
+  clienteId: number;
+  clienteNome?: string;
+  quartoNumero?: string;
+  dataCheckout: string;
+  diarias: number;
+  valorTotal: number;
+}
 
 interface PagamentoData {
   clienteId: number;
@@ -15,18 +26,20 @@ interface PagamentoData {
 
 const Pagamento: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const checkoutData = location.state?.checkoutData as CheckoutData;
   
   const [clientes, setClientes] = useState<ClienteResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState<PagamentoData>({
-    clienteId: 0,
+    clienteId: checkoutData?.clienteId || 0,
     tipo: 'hospedagem',
-    valor: 0,
+    valor: checkoutData?.valorTotal || 0,
     dataPagamento: new Date().toISOString().split('T')[0],
     metodo: 'dinheiro',
     status: 'pago',
-    observacoes: ''
+    observacoes: checkoutData ? `Pagamento referente ao check-out do quarto ${checkoutData.quartoNumero} - ${checkoutData.diarias} diárias` : ''
   });
 
   const [showSuccess, setShowSuccess] = useState(false);
@@ -68,8 +81,21 @@ const Pagamento: React.FC = () => {
 
     setIsLoading(true);
     try {
-      // Simulação de registro de pagamento (você pode ajustar quando tiver a API)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('Enviando dados de pagamento:', formData);
+      
+      // Enviar para API real
+      await pagamentoService.registrarPagamento({
+        clienteId: formData.clienteId,
+        tipo: formData.tipo,
+        valor: formData.valor,
+        dataPagamento: formData.dataPagamento,
+        metodo: formData.metodo,
+        status: formData.status,
+        observacoes: formData.observacoes,
+        createdAt: new Date().toISOString()
+      });
+      
+      console.log('✅ Pagamento registrado com sucesso!');
       
       setShowSuccess(true);
       setTimeout(() => {
@@ -108,6 +134,41 @@ const Pagamento: React.FC = () => {
           Registre pagamentos de clientes e gerencie transações.
         </p>
       </div>
+
+      {/* Resumo do Check-out */}
+      {checkoutData && (
+        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg border border-blue-200 dark:border-blue-700">
+          <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+            📋 Resumo do Check-out
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-blue-700 dark:text-blue-300">Cliente:</span>
+              <span className="ml-2 font-bold text-blue-900 dark:text-blue-100">
+                {checkoutData.clienteNome}
+              </span>
+            </div>
+            <div>
+              <span className="text-blue-700 dark:text-blue-300">Quarto:</span>
+              <span className="ml-2 font-bold text-blue-900 dark:text-blue-100">
+                {checkoutData.quartoNumero}
+              </span>
+            </div>
+            <div>
+              <span className="text-blue-700 dark:text-blue-300">Diárias:</span>
+              <span className="ml-2 font-bold text-blue-900 dark:text-blue-100">
+                {checkoutData.diarias}
+              </span>
+            </div>
+            <div>
+              <span className="text-blue-700 dark:text-blue-300">Valor Total:</span>
+              <span className="ml-2 font-bold text-blue-900 dark:text-blue-100">
+                {formatarMoeda(checkoutData.valorTotal)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Success Modal */}
       {showSuccess && (
@@ -164,19 +225,25 @@ const Pagamento: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Cliente *
             </label>
-            <select
-              value={formData.clienteId}
-              onChange={(e) => setFormData(prev => ({ ...prev, clienteId: parseInt(e.target.value) }))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-              required
-            >
-              <option value="">Selecione um cliente</option>
-              {clientes.map(cliente => (
-                <option key={cliente.id} value={cliente.id}>
-                  {cliente.nome} - {cliente.cpf}
-                </option>
-              ))}
-            </select>
+            {checkoutData ? (
+              <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                {checkoutData.clienteNome}
+              </div>
+            ) : (
+              <select
+                value={formData.clienteId}
+                onChange={(e) => setFormData(prev => ({ ...prev, clienteId: parseInt(e.target.value) }))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                required
+              >
+                <option value="">Selecione um cliente</option>
+                {clientes.map(cliente => (
+                  <option key={cliente.id} value={cliente.id}>
+                    {cliente.nome} - {cliente.cpf}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Tipo de Pagamento */}
@@ -203,15 +270,24 @@ const Pagamento: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Valor *
             </label>
-            <input
-              type="number"
-              value={formData.valor}
-              onChange={(e) => setFormData(prev => ({ ...prev, valor: parseFloat(e.target.value) }))}
-              min="0"
-              step="0.01"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-              required
-            />
+            {checkoutData ? (
+              <input
+                type="text"
+                value={formatarMoeda(checkoutData.valorTotal)}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+              />
+            ) : (
+              <input
+                type="number"
+                value={formData.valor}
+                onChange={(e) => setFormData(prev => ({ ...prev, valor: parseFloat(e.target.value) }))}
+                min="0"
+                step="0.01"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                required
+              />
+            )}
           </div>
 
           {/* Data do Pagamento */}
@@ -272,13 +348,23 @@ const Pagamento: React.FC = () => {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Observações
           </label>
-          <textarea
-            value={formData.observacoes}
-            onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
-            rows={4}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-            placeholder="Informações adicionais sobre o pagamento..."
-          />
+          {checkoutData ? (
+            <textarea
+              value={formData.observacoes}
+              onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              placeholder="Adicione informações adicionais sobre o pagamento..."
+            />
+          ) : (
+            <textarea
+              value={formData.observacoes}
+              onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              placeholder="Informações adicionais sobre o pagamento..."
+            />
+          )}
         </div>
 
         {/* Resumo do Pagamento */}
