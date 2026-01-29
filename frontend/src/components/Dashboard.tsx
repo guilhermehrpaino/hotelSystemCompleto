@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { reservaService } from '../services/api';
 import { quartoService, clienteService } from '../services/api';
 
 interface UserMenuItem {
@@ -37,15 +38,16 @@ const Dashboard: React.FC = () => {
   const isAdmin = user?.role === 'ADMIN';
 
   // Estados para dados do dashboard do usuário
-  const [stats, setStats] = useState<DashboardStats>({
+  const [stats, setStats] = useState({
     totalQuartos: 0,
     quartosDisponiveis: 0,
     quartosOcupados: 0,
-    reservasHoje: 0,
-    checkinsPendentes: 0,
-    clientesAtivos: 0
+    totalClientes: 0,
+    totalReservas: 0
   });
+  
   const [isLoading, setIsLoading] = useState(false);
+  const [atualizandoStatus, setAtualizandoStatus] = useState(false);
 
   const adminMenuItems: AdminMenuItem[] = [
     { id: 1, title: 'Cadastrar Cliente', description: 'Adicionar novos clientes ao sistema', path: '/admin/cadastrar-cliente' },
@@ -62,49 +64,59 @@ const Dashboard: React.FC = () => {
     { id: 4, title: 'Check-out', description: 'Registrar saída de hóspedes', path: '/user/checkout', icon: '🚪', color: 'bg-orange-500' },
     { id: 5, title: 'Status Quartos', description: 'Verificar disponibilidade', path: '/user/status-quartos', icon: '🛏️', color: 'bg-cyan-500' },
     { id: 6, title: 'Manutenção', description: 'Marcar quartos para manutenção', path: '/user/manutencao', icon: '🔧', color: 'bg-red-500' },
-    { id: 7, title: 'Pagamentos', description: 'Registrar pagamentos', path: '/user/pagamento', icon: '💳', color: 'bg-yellow-500' },
-    { id: 8, title: 'Consultar Cliente', description: 'Buscar informações de clientes', path: '/user/consultar-cliente', icon: '👥', color: 'bg-indigo-500' },
+    { id: 7, title: 'Consultar Cliente', description: 'Buscar informações de clientes', path: '/user/consultar-cliente', icon: '👥', color: 'bg-indigo-500' },
   ];
 
   const menuItems = isAdmin ? adminMenuItems : userMenuItems;
 
-  // Carregar dados para o dashboard do usuário
   useEffect(() => {
-    if (!isAdmin) {
-      carregarDadosDashboard();
-    }
+    carregarDados();
+    
+    // Atualizar status automático a cada 5 minutos
+    const interval = setInterval(() => {
+      atualizarStatusAutomatico();
+    }, 5 * 60 * 1000); // 5 minutos
+    
+    return () => clearInterval(interval);
   }, []);
 
-  const carregarDadosDashboard = async () => {
+  const carregarDados = async () => {
     setIsLoading(true);
     try {
       const [quartosData, clientesData] = await Promise.all([
         quartoService.listarQuartos(),
         clienteService.listarClientes()
       ]);
-
-      const totalQuartos = quartosData.length;
+      
       const quartosDisponiveis = quartosData.filter(q => q.status === 'DISPONIVEL').length;
       const quartosOcupados = quartosData.filter(q => q.status === 'OCUPADO').length;
       
-      // Simular dados de reservas (você pode ajustar quando tiver a API de reservas)
-      const reservasHoje = Math.floor(Math.random() * 10) + 5;
-      const checkinsPendentes = Math.floor(Math.random() * 5) + 2;
-      const clientesAtivos = clientesData.length;
-
       setStats({
-        totalQuartos,
+        totalQuartos: quartosData.length,
         quartosDisponiveis,
         quartosOcupados,
-        reservasHoje,
-        checkinsPendentes,
-        clientesAtivos
+        totalClientes: clientesData.length,
+        totalReservas: 0 // Será implementado quando tiver a API de reservas
       });
-
     } catch (error) {
-      console.error('Erro ao carregar dados do dashboard:', error);
+      console.error('Erro ao carregar dados:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const atualizarStatusAutomatico = async () => {
+    try {
+      setAtualizandoStatus(true);
+      const resultado = await reservaService.atualizarStatusAutomatico();
+      console.log('Status atualizado:', resultado);
+      
+      // Recarregar dados após atualização
+      await carregarDados();
+    } catch (error) {
+      console.error('Erro ao atualizar status automático:', error);
+    } finally {
+      setAtualizandoStatus(false);
     }
   };
 
@@ -207,14 +219,14 @@ const Dashboard: React.FC = () => {
         />
         <StatCard
           title="Reservas Hoje"
-          value={stats.reservasHoje}
+          value={stats.totalReservas}
           icon="📅"
           color="text-blue-500"
           trend="para hoje"
         />
         <StatCard
           title="Check-ins Pendentes"
-          value={stats.checkinsPendentes}
+          value="0"
           icon="⏰"
           color="text-orange-500"
           trend="aguardando"
@@ -228,7 +240,7 @@ const Dashboard: React.FC = () => {
         />
         <StatCard
           title="Clientes Ativos"
-          value={stats.clientesAtivos}
+          value={stats.totalClientes}
           icon="👥"
           color="text-indigo-500"
           trend="cadastrados"

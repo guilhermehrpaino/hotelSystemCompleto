@@ -11,9 +11,10 @@ const CriarReserva: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState<ReservaRequest>({
-    id: 0,
     clienteId: 0,
+    clienteNome: '',
     quartoId: 0,
+    quartoNumero: '',
     checkIn: '',
     checkOut: '',
     numeroHospedes: 1,
@@ -88,6 +89,12 @@ const CriarReserva: React.FC = () => {
         setVerificandoDisponibilidade(true);
         setDisponibilidadeVerificada(null);
         
+        console.log('Verificando disponibilidade:', {
+          quartoId: formData.quartoId,
+          checkIn: formData.checkIn,
+          checkOut: formData.checkOut
+        });
+        
         try {
           const disponivel = await reservaService.verificarDisponibilidade(
             formData.quartoId,
@@ -95,10 +102,12 @@ const CriarReserva: React.FC = () => {
             formData.checkOut
           );
           
+          console.log('Resultado disponibilidade:', disponivel);
           setDisponibilidadeVerificada(disponivel);
         } catch (error) {
           console.error('Erro ao verificar disponibilidade:', error);
-          setDisponibilidadeVerificada(false);
+          // Se der erro na verificação, permitir a reserva (fallback)
+          setDisponibilidadeVerificada(true);
         } finally {
           setVerificandoDisponibilidade(false);
         }
@@ -142,66 +151,95 @@ const CriarReserva: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('Tentando criar reserva:', formData);
+    
     if (!formData.clienteId || !formData.quartoId || !formData.checkIn || !formData.checkOut) {
+      console.log('Campos obrigatórios faltando');
       setErrorMessage('Preencha todos os campos obrigatórios.');
       setShowError(true);
       return;
     }
 
-    const checkIn = new Date(formData.checkIn);
-    const checkOut = new Date(formData.checkOut);
+    // Corrigir problema de fuso horário - criar datas sem considerar timezone
+    const checkIn = new Date(formData.checkIn + 'T00:00:00');
+    const checkOut = new Date(formData.checkOut + 'T00:00:00');
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0); // Zera horas para comparar apenas datas
     
-    if (checkIn < hoje) {
+    console.log('Verificando datas (CORRIGIDO):', {
+      checkIn: checkIn,
+      checkOut: checkOut,
+      hoje: hoje,
+      checkInMenorHoje: checkIn < hoje,
+      checkOutMenorIgualCheckIn: checkOut <= checkIn,
+      checkInFormatado: checkIn.toDateString(),
+      hojeFormatado: hoje.toDateString(),
+      mesmoDia: checkIn.toDateString() === hoje.toDateString()
+    });
+    
+    // Permitir check-in hoje ou no futuro
+    if (checkIn < hoje && checkIn.toDateString() !== hoje.toDateString()) {
+      console.log('Check-in é anterior a hoje');
       setErrorMessage('A data de check-in não pode ser anterior à data atual.');
       setShowError(true);
       return;
     }
     
     if (checkOut <= checkIn) {
+      console.log('Check-out não é posterior ao check-in');
       setErrorMessage('A data de check-out deve ser posterior à data de check-in.');
       setShowError(true);
       return;
     }
 
     if (formData.numeroHospedes <= 0) {
+      console.log('Número de hóspedes inválido');
       setErrorMessage('O número de hóspedes deve ser maior que zero.');
       setShowError(true);
       return;
     }
 
     if (formData.valorTotal <= 0) {
+      console.log('Valor total inválido');
       setErrorMessage('O valor total deve ser maior que zero.');
       setShowError(true);
       return;
     }
 
+    console.log('Disponibilidade verificada:', disponibilidadeVerificada);
+
     // Verificar se a disponibilidade foi confirmada
     if (disponibilidadeVerificada === false) {
+      console.log('Quarto não disponível');
       setErrorMessage('O quarto não está disponível para o período selecionado.');
       setShowError(true);
       return;
     }
 
     if (disponibilidadeVerificada === null) {
+      console.log('Disponibilidade não verificada ainda');
       setErrorMessage('Aguarde a verificação de disponibilidade ou selecione datas e quarto válidos.');
       setShowError(true);
       return;
     }
 
+    console.log('Reserva do cliente verificada:', reservaClienteVerificada);
+
     // Verificar se cliente já tem reserva ativa
     if (reservaClienteVerificada?.temReserva) {
+      console.log('Cliente já tem reserva ativa');
       const mensagem = reservaClienteVerificada.mensagem || 'Este cliente já possui uma reserva ativa. Para fazer uma nova reserva, cancele a anterior primeiro.';
       setErrorMessage(mensagem);
       setShowError(true);
       return;
     }
 
+    console.log('Todos os checks passaram, criando reserva...');
     setIsLoading(true);
     try {
       // Criar a reserva usando o serviço real
       const reservaCriada = await reservaService.criarReserva(formData);
+      console.log('Reserva criada com sucesso:', reservaCriada);
       
       setShowSuccess(true);
       setTimeout(() => {
@@ -213,19 +251,17 @@ const CriarReserva: React.FC = () => {
       
       // Tratar diferentes tipos de erro
       if (error.response) {
-        // Erro de resposta da API
         const status = error.response.status;
         const message = error.response.data?.message || 'Erro ao criar reserva';
+        
+        console.log('Erro da API:', { status, message });
         
         switch (status) {
           case 400:
             setErrorMessage(`Dados inválidos: ${message}`);
             break;
           case 409:
-            setErrorMessage('Conflito: O quarto já está reservado para este período.');
-            break;
-          case 404:
-            setErrorMessage('Cliente ou quarto não encontrado.');
+            setErrorMessage('Conflito de datas: O quarto já está reservado para este período.');
             break;
           case 500:
             setErrorMessage('Erro interno do servidor. Tente novamente mais tarde.');
@@ -234,10 +270,10 @@ const CriarReserva: React.FC = () => {
             setErrorMessage(`Erro ao criar reserva: ${message}`);
         }
       } else if (error.request) {
-        // Erro de rede
+        console.log('Erro de conexão');
         setErrorMessage('Erro de conexão. Verifique sua internet e tente novamente.');
       } else {
-        // Erro genérico
+        console.log('Erro desconhecido');
         setErrorMessage('Não foi possível criar a reserva. Tente novamente.');
       }
       
@@ -328,7 +364,15 @@ const CriarReserva: React.FC = () => {
             </label>
             <select
               value={formData.clienteId}
-              onChange={(e) => setFormData(prev => ({ ...prev, clienteId: parseInt(e.target.value) }))}
+              onChange={(e) => {
+                const clienteId = parseInt(e.target.value);
+                const cliente = clientes.find(c => c.id === clienteId);
+                setFormData(prev => ({ 
+                  ...prev, 
+                  clienteId, 
+                  clienteNome: cliente?.nome || '' 
+                }));
+              }}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               required
             >
@@ -348,7 +392,15 @@ const CriarReserva: React.FC = () => {
             </label>
             <select
               value={formData.quartoId}
-              onChange={(e) => setFormData(prev => ({ ...prev, quartoId: parseInt(e.target.value) }))}
+              onChange={(e) => {
+                const quartoId = parseInt(e.target.value);
+                const quarto = quartos.find(q => q.id === quartoId);
+                setFormData(prev => ({ 
+                  ...prev, 
+                  quartoId, 
+                  quartoNumero: quarto?.numero || '' 
+                }));
+              }}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               required
             >

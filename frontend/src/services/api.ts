@@ -139,9 +139,10 @@ export interface QuartoResponse {
 
 // Interfaces para Reservas
 export interface ReservaRequest {
-  id: number;
   clienteId: number;
+  clienteNome: string;
   quartoId: number;
+  quartoNumero: string;
   checkIn: string;
   checkOut: string;
   numeroHospedes: number;
@@ -152,7 +153,9 @@ export interface ReservaRequest {
 export interface ReservaResponse {
   id: number;
   clienteId: number;
+  clienteNome: string;
   quartoId: number;
+  quartoNumero: string;
   checkIn: string;
   checkOut: string;
   numeroHospedes: number;
@@ -203,25 +206,28 @@ export const quartoService = {
   // Atualizar status do quarto
   async atualizarStatusQuarto(id: number, status: string): Promise<QuartoResponse> {
     try {
-      // Primeiro busca os dados atuais do quarto
-      const quartoAtual = await this.buscarQuartoPorId(id);
+      console.log(`🔄 Iniciando atualização do quarto ${id} para status: ${status}`);
       
-      // Atualiza apenas o status, mantendo os outros dados
-      const dadosAtualizados = {
-        ...quartoAtual,
+      // Envia requisição PUT para o endpoint de checkout
+      // O backend deve receber apenas o campo status para atualizar
+      const response: AxiosResponse<QuartoResponse> = await api.put(`/quartos/${id}/checkout`, {
         status: status
-      };
+      });
       
-      console.log('Enviando PUT com todos os dados:', dadosAtualizados);
+      console.log(`✅ Status do quarto ${id} atualizado para: ${response.data.status}`);
+      console.log('📊 Resposta completa do backend:', response.data);
       
-      // Envia PUT com todos os dados do quarto para o endpoint de status
-      // baseURL já inclui /api, então não precisa repetir
-      const response: AxiosResponse<QuartoResponse> = await api.put(`/quartos/${id}/status`, dadosAtualizados);
-      
-      console.log('Resposta recebida:', response.data);
       return response.data;
-    } catch (error) {
-      console.error('Erro ao atualizar status do quarto:', error);
+    } catch (error: any) {
+      console.error(`❌ Erro ao atualizar status do quarto ${id}:`, error);
+      
+      // Log detalhado do erro
+      if (error.response) {
+        console.error('Status do erro:', error.response.status);
+        console.error('Mensagem do erro:', error.response.data);
+        console.error('Headers:', error.response.headers);
+      }
+      
       throw error;
     }
   },
@@ -346,6 +352,142 @@ export const reservaService = {
       return response.data;
     } catch (error: any) {
       console.error('Erro ao verificar reserva do cliente:', error);
+      throw error;
+    }
+  },
+
+  // Fazer Check-in
+  async fazerCheckIn(reservaId: number): Promise<ReservaResponse> {
+    try {
+      // Tenta com PUT (mais comum em Spring Boot)
+      const response: AxiosResponse<ReservaResponse> = await api.put(`/reservas/${reservaId}`, {
+        status: 'ATIVA'
+      });
+      
+      // Depois atualiza o status do quarto para OCUPADO usando endpoint específico de checkin
+      await api.put(`/quartos/${response.data.quartoId}/checkin`, {
+        status: 'OCUPADO'
+      });
+      
+      return response.data;
+    } catch (error: any) {
+      console.error('Erro ao fazer check-in:', error);
+      throw error;
+    }
+  },
+
+  // Fazer Check-out
+  async fazerCheckOut(reservaId: number): Promise<ReservaResponse> {
+    try {
+      // Envia PUT para atualizar status da reserva para FINALIZADA
+      const response: AxiosResponse<ReservaResponse> = await api.put(`/reservas/${reservaId}`, {
+        status: 'FINALIZADA'
+      });
+      
+      return response.data;
+    } catch (error: any) {
+      console.error('Erro ao fazer check-out:', error);
+      throw error;
+    }
+  },
+
+  // Atualizar status automático (backend job)
+  async atualizarStatusAutomatico(): Promise<{ quartosAtualizados: number; reservasAtualizadas: number }> {
+    try {
+      const response: AxiosResponse<{ quartosAtualizados: number; reservasAtualizadas: number }> = await api.post('/reservas/atualizar-status');
+      return response.data;
+    } catch (error: any) {
+      console.error('Erro ao atualizar status automático:', error);
+      throw error;
+    }
+  },
+
+  // Processar status de quartos específicos
+  async processarStatusQuartos(quartosIds: number[]): Promise<{ quartosProcessados: number; statusAtualizados: { quartoId: number; statusAntigo: string; statusNovo: string }[] }> {
+    try {
+      const response: AxiosResponse<{ quartosProcessados: number; statusAtualizados: { quartoId: number; statusAntigo: string; statusNovo: string }[] }> = await api.post('/reservas/processar-status-quartos', {
+        quartosIds
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Erro ao processar status dos quartos:', error);
+      throw error;
+    }
+  }
+};
+
+// Serviço de Pagamentos
+export const pagamentoService = {
+  // Listar todos os pagamentos
+  async listarPagamentos(): Promise<any[]> {
+    try {
+      const response: AxiosResponse<any[]> = await api.get('/pagamentos');
+      return response.data;
+    } catch (error: any) {
+      console.error('Erro ao listar pagamentos:', error);
+      throw error;
+    }
+  },
+
+  // Registrar novo pagamento
+  async registrarPagamento(pagamentoData: {
+    clienteId: number;
+    tipo: string;
+    valor: number;
+    dataPagamento: string;
+    metodo: string;
+    status: string;
+    observacoes: string;
+    createdAt: string;
+  }): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await api.post('/pagamentos', pagamentoData);
+      return response.data;
+    } catch (error: any) {
+      console.error('Erro ao registrar pagamento:', error);
+      throw error;
+    }
+  },
+
+  // Atualizar pagamento
+  async atualizarPagamento(id: number, pagamentoData: any): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await api.put(`/pagamentos/${id}`, pagamentoData);
+      return response.data;
+    } catch (error: any) {
+      console.error('Erro ao atualizar pagamento:', error);
+      throw error;
+    }
+  },
+
+  // Excluir pagamento
+  async excluirPagamento(id: number): Promise<void> {
+    try {
+      await api.delete(`/pagamentos/${id}`);
+    } catch (error: any) {
+      console.error('Erro ao excluir pagamento:', error);
+      throw error;
+    }
+  },
+
+  // Buscar pagamento por ID
+  async buscarPagamentoPorId(id: number): Promise<any> {
+    try {
+      const response: AxiosResponse<any> = await api.get(`/pagamentos/${id}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Erro ao buscar pagamento:', error);
+      throw error;
+    }
+  },
+
+  // Buscar pagamentos por cliente
+  async buscarPagamentosPorCliente(clienteId: number): Promise<any[]> {
+    try {
+      const response: AxiosResponse<any[]> = await api.get(`/pagamentos/cliente/${clienteId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Erro ao buscar pagamentos do cliente:', error);
       throw error;
     }
   }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clienteService } from '../../services/api';
 import { ClienteResponse } from '../../services/api';
+import { formatarDataBrasil } from '../../utils/dateUtils';
 
 const ConsultarCliente: React.FC = () => {
   const navigate = useNavigate();
@@ -271,7 +272,7 @@ const ConsultarCliente: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900 dark:text-white">
-                      {cliente.createdAt ? new Date(cliente.createdAt).toLocaleDateString('pt-BR') : 'N/A'}
+                      {cliente.createdAt ? formatarDataBrasil(cliente.createdAt) : 'N/A'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">

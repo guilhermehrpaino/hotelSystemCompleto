@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { quartoService } from '../../services/api';
 import { QuartoResponse } from '../../services/api';
+import { formatarDataBrasil } from '../../utils/dateUtils';
 
 interface ManutencaoData {
   quartoId: number;
@@ -269,7 +270,7 @@ const Manutencao: React.FC = () => {
               <div>
                 <span className="text-gray-600 dark:text-gray-400">Período:</span>
                 <span className="ml-2 text-gray-900 dark:text-white">
-                  {new Date(formData.dataInicio).toLocaleDateString('pt-BR')} - {formData.dataFim ? new Date(formData.dataFim).toLocaleDateString('pt-BR') : 'Não definido'}
+                  {formatarDataBrasil(formData.dataInicio)} - {formData.dataFim ? formatarDataBrasil(formData.dataFim) : 'Não definido'}
                 </span>
               </div>
             </div>
