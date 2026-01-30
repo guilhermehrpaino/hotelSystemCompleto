@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatarDataBrasil } from '../../utils/dateUtils';
+import { getTipoQuarto } from '../../utils/quartoUtils';
 import { reservaService, quartoService } from '../../services/api';
 import { ReservaResponse, QuartoResponse } from '../../services/api';
 
@@ -25,22 +26,17 @@ const ConsultarReservas: React.FC = () => {
   const carregarDados = async () => {
     setIsLoading(true);
     try {
-      // Carregar reservas primeiro
-      const reservasData = await reservaService.listarReservas();
-      setReservas(reservasData);
+      const [reservasData, quartosData] = await Promise.all([
+        reservaService.listarReservas(),
+        quartoService.listarQuartos()
+      ]);
       
-      // Carregar quartos separadamente para garantir dados atualizados
-      console.log('Carregando quartos para Consultar Reservas...');
-      const quartosData = await quartoService.listarQuartos();
+      // Filtrar apenas reservas que não são FINALIZADAS
+      const reservasAtivas = reservasData.filter(reserva => reserva.status !== 'FINALIZADA');
+      setReservas(reservasAtivas);
       setQuartos(quartosData);
       
-      console.log('Dados carregados:', {
-        totalReservas: reservasData.length,
-        totalQuartos: quartosData.length,
-        quartos: quartosData.map(q => ({ id: q.id, numero: q.numero, status: q.status }))
-      });
-
-      // Enviar IDs dos quartos para o backend processar status automaticamente
+      // Processar status automático dos quartos
       await processarStatusAutomaticoQuartos(quartosData);
       
     } catch (error) {
@@ -208,6 +204,8 @@ const ConsultarReservas: React.FC = () => {
         return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
       case 'MANUTENCAO':
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+      case 'SUJO':
+        return 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
     }
@@ -223,6 +221,8 @@ const ConsultarReservas: React.FC = () => {
         return '📅';
       case 'MANUTENCAO':
         return '🔧';
+      case 'SUJO':
+        return '🧹';
       default:
         return '❓';
     }
@@ -254,7 +254,8 @@ const ConsultarReservas: React.FC = () => {
     const condicaoAtiva = statusReserva === 'ATIVA' && statusQuarto === 'OCUPADO';
     
     // Se reserva está RESERVADA → Cancelar
-    const condicaoCancelar = statusReserva === 'RESERVADA';
+    // Se reserva está ATIVA → Cancelar
+    const condicaoCancelar = statusReserva === 'RESERVADA' || statusReserva === 'ATIVA';
     
     console.log('Condição Check-in:', {
       statusReserva,
@@ -282,7 +283,8 @@ const ConsultarReservas: React.FC = () => {
       statusReserva,
       resultado: condicaoCancelar,
       partes: {
-        'statusReserva === "RESERVADA"': statusReserva === 'RESERVADA'
+        'statusReserva === "RESERVADA"': statusReserva === 'RESERVADA',
+        'statusReserva === "ATIVA"': statusReserva === 'ATIVA'
       }
     });
 
@@ -311,7 +313,7 @@ const ConsultarReservas: React.FC = () => {
       console.log('✅ ADICIONANDO AÇÃO: Cancelar');
       acoes.push({
         label: 'Cancelar',
-        action: () => handleCancelarReserva(reserva.id),
+        action: () => navigate('/user/cancelar-reserva'),
         color: 'text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300'
       });
     }
@@ -341,7 +343,7 @@ const ConsultarReservas: React.FC = () => {
     const statusMatch = filtroStatus === 'todos' || reserva.status === filtroStatus;
     const buscaMatch = termoBusca === '' || 
       reserva.clienteNome?.toLowerCase().includes(termoBusca.toLowerCase()) ||
-      reserva.quartoNumero?.toLowerCase().includes(termoBusca.toLowerCase());
+      reserva.quartoNumero?.toString().toLowerCase().includes(termoBusca.toLowerCase());
     
     // Filtro por período de check-in
     let dataMatch = true;
@@ -449,6 +451,12 @@ const ConsultarReservas: React.FC = () => {
             </div>
             <div className="text-3xl">✅</div>
           </div>
+          <button
+            onClick={() => navigate('/user/consultar-reservas-finalizadas')}
+            className="mt-3 w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors duration-200"
+          >
+            Ver Reservas Finalizadas
+          </button>
         </div>
       </div>
 
@@ -505,7 +513,6 @@ const ConsultarReservas: React.FC = () => {
             >
               <option value="todos">Todos</option>
               <option value="ATIVA">Ativas</option>
-              <option value="FINALIZADA">Finalizadas</option>
               <option value="CANCELADA">Canceladas</option>
               <option value="RESERVADA">Reservadas</option>
             </select>
@@ -575,7 +582,7 @@ const ConsultarReservas: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900 dark:text-white">
-                      {reserva.quartoNumero || 'N/A'}
+                      {reserva.quartoNumero || 'N/A'} - {reserva.quartoNumero ? getTipoQuarto(parseInt(reserva.quartoNumero.toString())) : ''}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -683,7 +690,7 @@ const ConsultarReservas: React.FC = () => {
       {/* Botão Voltar */}
       <div className="mt-6">
         <button
-          onClick={() => navigate('/user')}
+          onClick={() => navigate('/')}
           className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors duration-200"
         >
           Voltar ao Dashboard

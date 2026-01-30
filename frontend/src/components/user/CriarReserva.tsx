@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { quartoService, clienteService, reservaService } from '../../services/api';
 import { QuartoResponse, ClienteResponse, ReservaRequest } from '../../services/api';
+import { getTipoQuarto } from '../../utils/quartoUtils';
 
 const CriarReserva: React.FC = () => {
   const navigate = useNavigate();
@@ -49,7 +50,9 @@ const CriarReserva: React.FC = () => {
         clienteService.listarClientes()
       ]);
       
-      setQuartos(quartosData);
+      // Ordenar quartos por número
+      const quartosOrdenados = quartosData.sort((a, b) => parseInt(a.numero.toString()) - parseInt(b.numero.toString()));
+      setQuartos(quartosOrdenados);
       setClientes(clientesData);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -407,7 +410,7 @@ const CriarReserva: React.FC = () => {
               <option value="">Selecione um quarto</option>
               {quartosDisponiveis.map(quarto => (
                 <option key={quarto.id} value={quarto.id}>
-                  {quarto.numero} - {quarto.tipo} ({formatarMoeda(quarto.diaria)}/noite)
+                  {quarto.numero} - {getTipoQuarto(parseInt(quarto.numero.toString()))} ({formatarMoeda(quarto.diaria)}/noite)
                 </option>
               ))}
             </select>
@@ -551,7 +554,7 @@ const CriarReserva: React.FC = () => {
         <div className="mt-8 flex justify-end space-x-4">
           <button
             type="button"
-            onClick={() => navigate('/user')}
+            onClick={() => navigate('/')}
             className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
           >
             Cancelar

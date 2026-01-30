@@ -2,9 +2,11 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { NotificacaoProvider } from './contexts/NotificacaoContext';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
-import AdminDashboard from './components/admin/Dashboard';
+import DashboardAdmin from './components/admin/DashboardAdmin';
+import DashboardAdminTest from './components/admin/DashboardAdminTest';
 import Layout from './components/Layout';
 import CadastrarCliente from './components/admin/CadastrarCliente';
 import ListaClientes from './components/admin/ListaClientes';
@@ -22,6 +24,12 @@ import StatusQuartos from './components/user/StatusQuartos';
 import Manutencao from './components/user/Manutencao';
 import Pagamento from './components/user/Pagamento';
 import ConsultarCliente from './components/user/ConsultarCliente';
+import UserCadastrarCliente from './components/user/CadastrarCliente';
+import EditarCliente from './components/user/EditarCliente';
+import SolicitarLimpeza from './components/user/SolicitarLimpeza';
+import ConfirmarLimpeza from './components/user/ConfirmarLimpeza';
+import CancelarReserva from './components/user/CancelarReserva';
+import ConsultarReservasFinalizadas from './components/user/ConsultarReservasFinalizadas';
 import './index.css';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -54,7 +62,7 @@ const AppContent: React.FC = () => {
       <Route path="/" element={
         <ProtectedRoute>
           <Layout title="Dashboard">
-            {user?.role === 'ADMIN' ? <AdminDashboard /> : <Dashboard />}
+            {user?.role === 'ADMIN' ? <DashboardAdmin /> : <Dashboard />}
           </Layout>
         </ProtectedRoute>
       } />
@@ -62,8 +70,8 @@ const AppContent: React.FC = () => {
       {/* Admin Dashboard específico */}
       <Route path="/admin/dashboard" element={
         <ProtectedRoute>
-          <Layout title="Dashboard Admin">
-            <AdminDashboard />
+          <Layout title="Dashboard Administrativo">
+            <DashboardAdmin />
           </Layout>
         </ProtectedRoute>
       } />
@@ -183,6 +191,48 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      <Route path="/user/cadastrar-cliente" element={
+        <ProtectedRoute>
+          <Layout title="Cadastrar Cliente">
+            <UserCadastrarCliente />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/user/editar-cliente/:id" element={
+        <ProtectedRoute>
+          <Layout title="Editar Cliente">
+            <EditarCliente />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/user/limpeza" element={
+        <ProtectedRoute>
+          <Layout title="Solicitar Limpeza">
+            <SolicitarLimpeza />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/user/confirmar-limpeza" element={
+        <ProtectedRoute>
+          <Layout title="Confirmar Limpeza">
+            <ConfirmarLimpeza />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/user/cancelar-reserva" element={
+        <ProtectedRoute>
+          <Layout title="Cancelar Reserva">
+            <CancelarReserva />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/user/consultar-reservas-finalizadas" element={
+        <ProtectedRoute>
+          <Layout title="Reservas Finalizadas">
+            <ConsultarReservasFinalizadas />
+          </Layout>
+        </ProtectedRoute>
+      } />
       
       {/* Catch all route */}
       <Route path="*" element={
@@ -204,7 +254,9 @@ const App: React.FC = () => {
     <Router>
       <ThemeProvider>
         <AuthProvider>
-          <AppContent />
+          <NotificacaoProvider>
+            <AppContent />
+          </NotificacaoProvider>
         </AuthProvider>
       </ThemeProvider>
     </Router>

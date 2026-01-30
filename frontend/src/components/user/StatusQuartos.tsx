@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { quartoService } from '../../services/api';
-import { QuartoResponse } from '../../services/api';
+import { quartoService, QuartoResponse } from '../../services/api';
+import { getTipoQuarto } from '../../utils/quartoUtils';
 
 const StatusQuartos: React.FC = () => {
   const navigate = useNavigate();
@@ -11,6 +11,8 @@ const StatusQuartos: React.FC = () => {
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
   const [filtroTipo, setFiltroTipo] = useState<string>('todos');
   const [termoBusca, setTermoBusca] = useState<string>('');
+  const [isLoadingAction, setIsLoadingAction] = useState<number | null>(null);
+  const [confirmacaoAction, setConfirmacaoAction] = useState<{type: string; quartoId: number; quartoNumero: string} | null>(null);
 
   useEffect(() => {
     carregarQuartos();
@@ -20,7 +22,9 @@ const StatusQuartos: React.FC = () => {
     setIsLoading(true);
     try {
       const quartosData = await quartoService.listarQuartos();
-      setQuartos(quartosData);
+      // Ordenar quartos por número
+      const quartosOrdenados = quartosData.sort((a, b) => parseInt(a.numero.toString()) - parseInt(b.numero.toString()));
+      setQuartos(quartosOrdenados);
     } catch (error) {
       console.error('Erro ao carregar quartos:', error);
     } finally {
@@ -38,6 +42,8 @@ const StatusQuartos: React.FC = () => {
         return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
       case 'MANUTENCAO':
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+      case 'SUJO':
+        return 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
     }
@@ -53,6 +59,8 @@ const StatusQuartos: React.FC = () => {
         return 'Reservado';
       case 'MANUTENCAO':
         return 'Manutenção';
+      case 'SUJO':
+        return 'Sujo';
       default:
         return status;
     }
@@ -68,6 +76,8 @@ const StatusQuartos: React.FC = () => {
         return '📅';
       case 'MANUTENCAO':
         return '🔧';
+      case 'SUJO':
+        return '🧹';
       default:
         return '❓';
     }
@@ -75,26 +85,78 @@ const StatusQuartos: React.FC = () => {
 
   const quartosFiltrados = quartos.filter(quarto => {
     const statusMatch = filtroStatus === 'todos' || quarto.status === filtroStatus;
-    const tipoMatch = filtroTipo === 'todos' || quarto.tipo.toLowerCase().includes(filtroTipo.toLowerCase());
+    const tipoPadronizado = getTipoQuarto(parseInt(quarto.numero.toString()));
+    const tipoMatch = filtroTipo === 'todos' || tipoPadronizado.toLowerCase().includes(filtroTipo.toLowerCase());
     const buscaMatch = termoBusca === '' || 
-      quarto.numero.toLowerCase().includes(termoBusca.toLowerCase()) ||
-      quarto.tipo.toLowerCase().includes(termoBusca.toLowerCase());
+      quarto.numero.toString().toLowerCase().includes(termoBusca.toLowerCase()) ||
+      tipoPadronizado.toLowerCase().includes(termoBusca.toLowerCase());
     
     return statusMatch && tipoMatch && buscaMatch;
   });
 
-  const tiposDisponiveis = Array.from(new Set(quartos.map(q => q.tipo)));
+  const tiposDisponiveis = Array.from(new Set(quartos.map(q => getTipoQuarto(parseInt(q.numero.toString()))).filter(Boolean)));
 
   const stats = {
     total: quartos.length,
     disponiveis: quartos.filter(q => q.status === 'DISPONIVEL').length,
     ocupados: quartos.filter(q => q.status === 'OCUPADO').length,
     reservados: quartos.filter(q => q.status === 'RESERVADO').length,
-    manutencao: quartos.filter(q => q.status === 'MANUTENCAO').length
+    manutencao: quartos.filter(q => q.status === 'MANUTENCAO').length,
+    sujos: quartos.filter(q => q.status === 'SUJO').length
   };
 
   const formatarMoeda = (valor: number) => {
     return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
+  const handleConfirmarLimpeza = async (quartoId: number, quartoNumero: string) => {
+    setConfirmacaoAction({ type: 'limpeza', quartoId, quartoNumero });
+  };
+
+  const handleConfirmarManutencao = async (quartoId: number, quartoNumero: string) => {
+    setConfirmacaoAction({ type: 'manutencao', quartoId, quartoNumero });
+  };
+
+  const executarConfirmacaoLimpeza = async () => {
+    if (!confirmacaoAction) return;
+    
+    setIsLoadingAction(confirmacaoAction.quartoId);
+    try {
+      // Primeiro atualiza o status do quarto para DISPONIVEL
+      await quartoService.atualizarStatusQuarto(confirmacaoAction.quartoId, 'DISPONIVEL');
+      
+      // Depois salva a observação de confirmação
+      await quartoService.atualizarObservacaoQuarto(confirmacaoAction.quartoId, 'Limpeza confirmada e quarto disponível');
+      
+      // Recarregar a lista de quartos
+      await carregarQuartos();
+      setConfirmacaoAction(null);
+    } catch (error) {
+      console.error('Erro ao confirmar limpeza:', error);
+    } finally {
+      setIsLoadingAction(null);
+    }
+  };
+
+  const executarConfirmacaoManutencao = async () => {
+    if (!confirmacaoAction) return;
+    
+    setIsLoadingAction(confirmacaoAction.quartoId);
+    try {
+      // Primeiro atualiza o status do quarto para DISPONIVEL
+      await quartoService.atualizarStatusQuarto(confirmacaoAction.quartoId, 'DISPONIVEL');
+      
+      // Depois salva a observação de confirmação
+      await quartoService.atualizarObservacaoQuarto(confirmacaoAction.quartoId, 'Manutenção concluída e quarto disponível');
+      
+      // Recarregar a lista de quartos
+      await carregarQuartos();
+      setConfirmacaoAction(null);
+    } catch (error) {
+      console.error('Erro ao confirmar manutenção:', error);
+    } finally {
+      setIsLoadingAction(null);
+    }
   };
 
   if (isLoading) {
@@ -168,6 +230,16 @@ const StatusQuartos: React.FC = () => {
             <div className="text-3xl">🔧</div>
           </div>
         </div>
+        
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Sujo</p>
+              <p className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{stats.sujos}</p>
+            </div>
+            <div className="text-3xl">🧹</div>
+          </div>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -200,6 +272,7 @@ const StatusQuartos: React.FC = () => {
               <option value="OCUPADO">Ocupado</option>
               <option value="RESERVADO">Reservado</option>
               <option value="MANUTENCAO">Manutenção</option>
+              <option value="SUJO">Sujo</option>
             </select>
           </div>
           
@@ -267,7 +340,7 @@ const StatusQuartos: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900 dark:text-white">
-                      {quarto.tipo}
+                      {getTipoQuarto(parseInt(quarto.numero.toString()))}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -282,19 +355,38 @@ const StatusQuartos: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => navigate('/user/criar-reserva')}
-                      className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
-                      disabled={quarto.status !== 'DISPONIVEL'}
-                    >
-                      Reservar
-                    </button>
-                    <button
-                      onClick={() => navigate('/user/manutencao')}
-                      className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
-                    >
-                      Manutenção
-                    </button>
+                    {quarto.status === 'SUJO' ? (
+                      <button
+                        onClick={() => handleConfirmarLimpeza(quarto.id, quarto.numero)}
+                        disabled={isLoadingAction === quarto.id}
+                        className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isLoadingAction === quarto.id ? 'Processando...' : 'Confirmar Limpeza'}
+                      </button>
+                    ) : quarto.status === 'MANUTENCAO' ? (
+                      <button
+                        onClick={() => handleConfirmarManutencao(quarto.id, quarto.numero)}
+                        disabled={isLoadingAction === quarto.id}
+                        className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isLoadingAction === quarto.id ? 'Processando...' : 'Confirmar Manutenção'}
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => navigate(`/user/limpeza?quartoId=${quarto.id}`)}
+                          className="text-cyan-600 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300 mr-3"
+                        >
+                          Limpeza
+                        </button>
+                        <button
+                          onClick={() => navigate(`/user/manutencao?quartoId=${quarto.id}`)}
+                          className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
+                        >
+                          Manutenção
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -319,12 +411,42 @@ const StatusQuartos: React.FC = () => {
       {/* Botão Voltar */}
       <div className="mt-6">
         <button
-          onClick={() => navigate('/user')}
+          onClick={() => navigate('/')}
           className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors duration-200"
         >
           Voltar ao Dashboard
         </button>
       </div>
+
+      {/* Modal de Confirmação */}
+      {confirmacaoAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Confirmar {confirmacaoAction.type === 'limpeza' ? 'Limpeza' : 'Manutenção'}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              Tem certeza que deseja confirmar a {confirmacaoAction.type === 'limpeza' ? 'limpeza' : 'manutenção'} do quarto {confirmacaoAction.quartoNumero}? 
+              O status será alterado para DISPONÍVEL.
+            </p>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={() => setConfirmacaoAction(null)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmacaoAction.type === 'limpeza' ? executarConfirmacaoLimpeza : executarConfirmacaoManutencao}
+                disabled={isLoadingAction === confirmacaoAction.quartoId}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoadingAction === confirmacaoAction.quartoId ? 'Processando...' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

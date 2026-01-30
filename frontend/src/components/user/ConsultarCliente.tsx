@@ -278,15 +278,9 @@ const ConsultarCliente: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button
                       onClick={() => navigate(`/user/editar-cliente/${cliente.id}`)}
-                      className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
+                      className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                     >
                       Editar
-                    </button>
-                    <button
-                      onClick={() => navigate(`/user/criar-reserva?cliente=${cliente.id}`)}
-                      className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                    >
-                      Reservar
                     </button>
                   </td>
                 </tr>
@@ -312,7 +306,7 @@ const ConsultarCliente: React.FC = () => {
       {/* Botão Voltar */}
       <div className="mt-6">
         <button
-          onClick={() => navigate('/user')}
+          onClick={() => navigate('/')}
           className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors duration-200"
         >
           Voltar ao Dashboard
