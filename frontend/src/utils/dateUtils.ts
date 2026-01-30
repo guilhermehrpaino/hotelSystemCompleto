@@ -48,7 +48,17 @@ export const getDataAtualBrasilia = (): Date => {
  * @returns String formatada para input
  */
 export const getDataAtualInput = (): string => {
-  return formatarDataInput(getDataAtualBrasilia());
+  const agora = new Date();
+  // Ajustar para Brasília (UTC-3)
+  const brasiliaOffset = -3 * 60 * 60 * 1000;
+  const dataBrasilia = new Date(agora.getTime() + (agora.getTimezoneOffset() * 60 * 1000) + brasiliaOffset);
+  
+  // Formatar como YYYY-MM-DD
+  const ano = dataBrasilia.getFullYear();
+  const mes = String(dataBrasilia.getMonth() + 1).padStart(2, '0');
+  const dia = String(dataBrasilia.getDate()).padStart(2, '0');
+  
+  return `${ano}-${mes}-${dia}`;
 };
 
 /**
@@ -78,15 +88,24 @@ export const adicionarDias = (dataString: string, dias: number): string => {
 };
 
 /**
- * Verifica se uma data é hoje considerando Brasília
- * @param dataString - Data a verificar em formato ISO string
+ * Verifica se uma data é hoje considerando Brasília (UTC-3)
+ * @param dataString - Data a verificar (formato YYYY-MM-DD ou ISO)
  * @returns True se for hoje
  */
 export const ehHoje = (dataString: string): boolean => {
-  const data = converterParaBrasilia(dataString);
-  const hoje = getDataAtualBrasilia();
+  // Extrair apenas a parte da data (YYYY-MM-DD)
+  const dataParte = dataString.split('T')[0];
+  const [ano, mes, dia] = dataParte.split('-').map(Number);
   
-  return data.toDateString() === hoje.toDateString();
+  // Obter data atual em Brasília (UTC-3)
+  const agora = new Date();
+  const brasiliaOffset = -3 * 60 * 60 * 1000; // -3 horas em ms
+  const dataBrasilia = new Date(agora.getTime() + (agora.getTimezoneOffset() * 60 * 1000) + brasiliaOffset);
+  
+  // Comparar ano, mês e dia
+  return ano === dataBrasilia.getFullYear() && 
+         mes === (dataBrasilia.getMonth() + 1) && 
+         dia === dataBrasilia.getDate();
 };
 
 /**

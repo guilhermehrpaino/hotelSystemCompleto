@@ -293,7 +293,7 @@ const ConsultarReservas: React.FC = () => {
       console.log('✅ ADICIONANDO AÇÃO: Check-in');
       acoes.push({
         label: 'Check-in',
-        action: () => navigate('/user/checkin'),
+        action: () => navigate('/user/checkin', { state: { reservaId: reserva.id, quartoId: reserva.quartoId } }),
         color: 'text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300'
       });
     }
@@ -303,7 +303,7 @@ const ConsultarReservas: React.FC = () => {
       console.log('✅ ADICIONANDO AÇÃO: Check-out');
       acoes.push({
         label: 'Check-out',
-        action: () => navigate('/user/checkout'),
+        action: () => navigate('/user/checkout', { state: { reservaId: reserva.id, quartoId: reserva.quartoId } }),
         color: 'text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300'
       });
     }
@@ -381,7 +381,7 @@ const ConsultarReservas: React.FC = () => {
       <div className="mb-8">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Consultar Reservas</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestão de Reservas</h1>
             <p className="mt-2 text-gray-600 dark:text-gray-400">
               Visualize e gerencie todas as reservas do hotel.
             </p>

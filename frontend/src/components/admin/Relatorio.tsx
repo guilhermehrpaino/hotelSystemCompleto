@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { quartoService, QuartoResponse } from '../../services/api';
+import { quartoService, QuartoResponse, reservaService } from '../../services/api';
+import { getTipoQuarto } from '../../utils/quartoUtils';
 import { clienteService, ClienteResponse } from '../../services/api';
 import { FuncionarioRequest, FuncionarioResponse, funcionarioService } from '../../services/funcionarioApi';
 import ErrorModal from '../common/ErrorModal';
@@ -113,7 +114,7 @@ const Relatorio: React.FC = () => {
     return filtrados.map(quarto => ({
       id: quarto.id,
       numero: quarto.numero,
-      tipo: quarto.tipo,
+      tipo: getTipoQuarto(Number(quarto.numero)),
       diaria: quarto.diaria,
       status: getStatusText(quarto.status),
       statusColor: getStatusColor(quarto.status),
@@ -212,48 +213,120 @@ const Relatorio: React.FC = () => {
   };
 
   const gerarRelatorioFinanceiro = async (): Promise<any[]> => {
-    const quartos = await quartoService.listarQuartos();
-    
-    // Simulação de dados financeiros
+    const [quartos, reservas] = await Promise.all([
+      quartoService.listarQuartos(),
+      reservaService.listarReservas()
+    ]);
+
     const ocupados = quartos.filter(q => q.status === 'OCUPADO').length;
-    const diariaMedia = quartos.reduce((acc, q) => acc + q.diaria, 0) / quartos.length;
-    
+    const diariaMedia = quartos.length > 0 ? quartos.reduce((acc, q) => acc + q.diaria, 0) / quartos.length : 0;
+
+    const reservasAtivas = reservas.filter((r: any) => r.status === 'ATIVA').length;
+    const reservasFinalizadas = reservas.filter((r: any) => r.status === 'FINALIZADA').length;
+    const receitaTotal = reservas.reduce((acc: number, r: any) => acc + (r.valorTotal || 0), 0);
+    const receitaMediaReserva = reservas.length > 0 ? receitaTotal / reservas.length : 0;
+    const taxaOcupacao = quartos.length > 0 ? (ocupados / quartos.length) * 100 : 0;
+
     return [
       {
         metrica: 'Quartos Ocupados',
         valor: ocupados,
         total: quartos.length,
-        percentual: ((ocupados / quartos.length) * 100).toFixed(1),
+        percentual: taxaOcupacao.toFixed(1),
+      },
+      {
+        metrica: 'Reservas Ativas',
+        valor: reservasAtivas,
+        total: reservas.length,
+        percentual: reservas.length > 0 ? ((reservasAtivas / reservas.length) * 100).toFixed(1) : '0.0',
+      },
+      {
+        metrica: 'Reservas Finalizadas',
+        valor: reservasFinalizadas,
+        total: reservas.length,
+        percentual: reservas.length > 0 ? ((reservasFinalizadas / reservas.length) * 100).toFixed(1) : '0.0',
+      },
+      {
+        metrica: 'Receita Total',
+        valor: formatarMoeda(receitaTotal),
+        total: '-',
+        percentual: '-',
+      },
+      {
+        metrica: 'Receita Média por Reserva',
+        valor: formatarMoeda(receitaMediaReserva),
+        total: '-',
+        percentual: '-',
       },
       {
         metrica: 'Diária Média',
         valor: formatarMoeda(diariaMedia),
         total: '-',
         percentual: '-',
-      },
-      {
-        metrica: 'Receita Mensal Estimada',
-        valor: formatarMoeda(diariaMedia * ocupados * 30),
-        total: '-',
-        percentual: '-',
-      },
+      }
     ];
   };
 
   const exportarParaPDF = async () => {
     setIsExporting(true);
     try {
-      // Simulação de exportação PDF
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      const colunas = dadosRelatorio.length > 0
+        ? Object.keys(dadosRelatorio[0]).filter(key => key !== 'statusColor')
+        : [];
+
+      const tabelaHtml = colunas.length > 0
+        ? `
+          <table style="width:100%; border-collapse:collapse; font-family:Arial, sans-serif; font-size:12px;">
+            <thead>
+              <tr>
+                ${colunas.map(col => `<th style="text-align:left; padding:8px; border-bottom:1px solid #e5e7eb;">${col.charAt(0).toUpperCase() + col.slice(1)}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${dadosRelatorio.map(item => `
+                <tr>
+                  ${colunas.map(col => `<td style="padding:8px; border-bottom:1px solid #f1f5f9;">${item[col]}</td>`).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `
+        : '<p>Sem dados para exportar.</p>';
+
+      const printWindow = window.open('', '_blank', 'width=900,height=700');
+      if (!printWindow) {
+        throw new Error('Pop-up bloqueado. Permita pop-ups para exportar o PDF.');
+      }
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Relatório ${tipoRelatorio}</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
+              h1 { font-size: 20px; margin-bottom: 8px; }
+              p { color: #6b7280; margin-bottom: 16px; }
+            </style>
+          </head>
+          <body>
+            <h1>Relatório ${tipoRelatorio}</h1>
+            <p>Gerado em ${new Date().toLocaleDateString('pt-BR')}.</p>
+            ${tabelaHtml}
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+
       showSuccessModal(
         'PDF Exportado!',
-        'O relatório foi exportado com sucesso.',
+        'O relatório foi preparado para impressão/salvamento em PDF.',
         `Arquivo: relatorio_${tipoRelatorio}_${new Date().toISOString().split('T')[0]}.pdf`
       );
     } catch (error: any) {
       console.error('Erro ao exportar PDF:', error);
-      showErrorModal('Erro ao exportar PDF', 'Não foi possível exportar o relatório. Tente novamente.');
+      showErrorModal('Erro ao exportar PDF', error.message || 'Não foi possível exportar o relatório.');
     } finally {
       setIsExporting(false);
     }
@@ -420,14 +493,14 @@ const Relatorio: React.FC = () => {
     const colunas = Object.keys(dadosRelatorio[0]).filter(key => key !== 'statusColor');
 
     return (
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-xl border border-gray-200/60 dark:border-gray-700/60">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-800">
+          <thead className="bg-gray-50/80 dark:bg-gray-800/80 sticky top-0 backdrop-blur">
             <tr>
               {colunas.map((coluna) => (
                 <th
                   key={coluna}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                  className="px-6 py-3 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
                 >
                   {coluna.charAt(0).toUpperCase() + coluna.slice(1).replace(/([A-Z])/g, ' $1')}
                 </th>
@@ -436,11 +509,14 @@ const Relatorio: React.FC = () => {
           </thead>
           <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
             {dadosRelatorio.map((item, index) => (
-              <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+              <tr
+                key={index}
+                className="odd:bg-white even:bg-gray-50/60 dark:odd:bg-gray-900 dark:even:bg-gray-800/40 hover:bg-indigo-50/60 dark:hover:bg-gray-800 transition-colors"
+              >
                 {colunas.map((coluna) => (
-                  <td key={coluna} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  <td key={coluna} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                     {coluna === 'status' && item.statusColor ? (
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${item.statusColor}`}>
+                      <span className={`inline-flex px-2.5 py-1 text-[11px] font-semibold rounded-full ${item.statusColor}`}>
                         {item[coluna]}
                       </span>
                     ) : (
@@ -457,17 +533,44 @@ const Relatorio: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="card">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Relatórios</h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Gere relatórios detalhados do sistema
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 md:p-6">
+      <div className="max-w-screen-2xl mx-auto space-y-6">
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-cyan-600 bg-clip-text text-transparent">
+                Relatórios
+              </h2>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Gere relatórios detalhados do sistema com filtros inteligentes
+              </p>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={gerarRelatorio}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Gerando...' : 'Gerar Relatório'}
+              </button>
+              <button
+                onClick={exportarParaPDF}
+                className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 text-sm font-semibold rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                disabled={isExporting || dadosRelatorio.length === 0}
+              >
+                {isExporting ? 'Exportando...' : 'Exportar PDF'}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Filtros */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Filtros</h3>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Aplique filtros para refinar o relatório</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Tipo de Relatório
@@ -617,36 +720,20 @@ const Relatorio: React.FC = () => {
               />
             </div>
           )}
-        </div>
-
-        {/* Ações */}
-        <div className="flex gap-3 mb-6">
-          <button
-            onClick={gerarRelatorio}
-            className="btn-primary"
-            disabled={isLoading}
-          >
-            {isLoading ? 'Gerando...' : 'Gerar Relatório'}
-          </button>
-          
-          <button
-            onClick={exportarParaPDF}
-            className="btn-secondary"
-            disabled={isExporting || dadosRelatorio.length === 0}
-          >
-            {isExporting ? 'Exportando...' : 'Exportar para PDF'}
-          </button>
+          </div>
         </div>
 
         {/* Resultado do Relatório */}
-        {isLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600 dark:text-gray-400">Gerando relatório...</p>
-          </div>
-        ) : (
-          renderTabelaRelatorio()
-        )}
+        <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-6">
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600 dark:text-gray-400">Gerando relatório...</p>
+            </div>
+          ) : (
+            renderTabelaRelatorio()
+          )}
+        </div>
       </div>
 
       {/* Modal de Erro */}

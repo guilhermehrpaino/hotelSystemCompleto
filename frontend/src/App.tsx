@@ -5,8 +5,6 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificacaoProvider } from './contexts/NotificacaoContext';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
-import DashboardAdmin from './components/admin/DashboardAdmin';
-import DashboardAdminTest from './components/admin/DashboardAdminTest';
 import Layout from './components/Layout';
 import CadastrarCliente from './components/admin/CadastrarCliente';
 import ListaClientes from './components/admin/ListaClientes';
@@ -31,6 +29,7 @@ import ConfirmarLimpeza from './components/user/ConfirmarLimpeza';
 import CancelarReserva from './components/user/CancelarReserva';
 import ConsultarReservasFinalizadas from './components/user/ConsultarReservasFinalizadas';
 import './index.css';
+import DashboardAdmin from './components/admin/DashboardAdmin';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
@@ -62,7 +61,7 @@ const AppContent: React.FC = () => {
       <Route path="/" element={
         <ProtectedRoute>
           <Layout title="Dashboard">
-            {user?.role === 'ADMIN' ? <DashboardAdmin /> : <Dashboard />}
+            {user?.role === 'ADMIN' ? <DashboardAdmin/> : <Dashboard />}
           </Layout>
         </ProtectedRoute>
       } />
@@ -84,13 +83,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
-      <Route path="/admin/cadastrar-cliente" element={
-        <ProtectedRoute>
-          <Layout title="Cadastrar Cliente">
-            <CadastrarCliente />
-          </Layout>
-        </ProtectedRoute>
-      } />
+      
       <Route path="/admin/quartos" element={
         <ProtectedRoute>
           <Layout title="Gestão de Quartos">
@@ -98,13 +91,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
-      <Route path="/admin/cadastrar-quarto" element={
-        <ProtectedRoute>
-          <Layout title="Cadastrar Quarto">
-            <CadastrarQuarto onSuccess={() => {}} modo="cadastro" />
-          </Layout>
-        </ProtectedRoute>
-      } />
+      
       <Route path="/admin/funcionarios" element={
         <ProtectedRoute>
           <Layout title="Gestão de Funcionários">
@@ -112,13 +99,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
-      <Route path="/admin/cadastrar-funcionario" element={
-        <ProtectedRoute>
-          <Layout title="Cadastrar Funcionário">
-            <CadastrarFuncionario onSuccess={() => {}} modo="cadastro" />
-          </Layout>
-        </ProtectedRoute>
-      } />
+      
       <Route path="/admin/alterar-status" element={
         <ProtectedRoute>
           <Layout title="Alterar Status Quarto">
@@ -126,6 +107,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/admin/relatorios" element={
         <ProtectedRoute>
           <Layout title="Relatórios">
@@ -142,6 +124,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/user/consultar-reservas" element={
         <ProtectedRoute>
           <Layout title="Consultar Reservas">
@@ -149,6 +132,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/user/checkin" element={
         <ProtectedRoute>
           <Layout title="Check-in">
@@ -156,6 +140,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/user/checkout" element={
         <ProtectedRoute>
           <Layout title="Check-out">
@@ -163,6 +148,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/user/status-quartos" element={
         <ProtectedRoute>
           <Layout title="Status dos Quartos">
@@ -170,6 +156,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/user/manutencao" element={
         <ProtectedRoute>
           <Layout title="Manutenção">
@@ -177,6 +164,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/user/pagamento" element={
         <ProtectedRoute>
           <Layout title="Pagamento">
@@ -184,6 +172,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/user/consultar-cliente" element={
         <ProtectedRoute>
           <Layout title="Consultar Cliente">
@@ -191,6 +180,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/user/cadastrar-cliente" element={
         <ProtectedRoute>
           <Layout title="Cadastrar Cliente">
@@ -198,6 +188,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/user/editar-cliente/:id" element={
         <ProtectedRoute>
           <Layout title="Editar Cliente">
@@ -205,6 +196,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/user/limpeza" element={
         <ProtectedRoute>
           <Layout title="Solicitar Limpeza">
@@ -212,6 +204,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/user/confirmar-limpeza" element={
         <ProtectedRoute>
           <Layout title="Confirmar Limpeza">
@@ -219,6 +212,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/user/cancelar-reserva" element={
         <ProtectedRoute>
           <Layout title="Cancelar Reserva">
@@ -226,6 +220,7 @@ const AppContent: React.FC = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      
       <Route path="/user/consultar-reservas-finalizadas" element={
         <ProtectedRoute>
           <Layout title="Reservas Finalizadas">
