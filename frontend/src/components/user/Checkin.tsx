@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { quartoService, clienteService, reservaService } from '../../services/api';
 import { QuartoResponse, ClienteResponse, ReservaResponse } from '../../services/api';
 import { ehHoje, formatarDataBrasil, getDataAtualInput } from '../../utils/dateUtils';
+import { getTipoQuarto } from '../../utils/quartoUtils';
 
 interface CheckinData {
   reservaId: number;
@@ -48,7 +49,9 @@ const Checkin: React.FC = () => {
         reservaService.listarReservas()
       ]);
       
-      setQuartos(quartosData);
+      // Ordenar quartos por número
+      const quartosOrdenados = quartosData.sort((a, b) => parseInt(a.numero.toString()) - parseInt(b.numero.toString()));
+      setQuartos(quartosOrdenados);
       setClientes(clientesData);
       setReservas(reservasData);
       
@@ -276,7 +279,7 @@ const Checkin: React.FC = () => {
                   const quarto = quartos.find(q => q.id === reserva.quartoId);
                   return (
                     <option key={reserva.id} value={reserva.id}>
-                      {reserva.clienteNome} - Quarto {quarto?.numero} ({formatarDataBrasil(reserva.checkIn)})
+                      {reserva.clienteNome} - Quarto {quarto?.numero} ({quarto?.numero ? getTipoQuarto(parseInt(quarto.numero.toString())) : ''}) ({formatarDataBrasil(reserva.checkIn)})
                     </option>
                   );
                 })}
@@ -331,7 +334,10 @@ const Checkin: React.FC = () => {
               <div>
                 <span className="text-gray-600 dark:text-gray-400">Quarto:</span>
                 <span className="ml-2 text-gray-900 dark:text-white">
-                  {quartos.find(q => q.id === formData.quartoId)?.numero} - {quartos.find(q => q.id === formData.quartoId)?.tipo}
+                  {(() => {
+                    const quarto = quartos.find(q => q.id === formData.quartoId);
+                    return quarto ? `${quarto.numero} - ${getTipoQuarto(parseInt(quarto.numero.toString()))}` : '';
+                  })()}
                 </span>
               </div>
               <div>
@@ -360,7 +366,7 @@ const Checkin: React.FC = () => {
         <div className="mt-8 flex justify-end space-x-4">
           <button
             type="button"
-            onClick={() => navigate('/user')}
+            onClick={() => navigate('/')}
             className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
           >
             Cancelar

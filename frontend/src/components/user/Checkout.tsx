@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { quartoService, clienteService, reservaService } from '../../services/api';
 import { QuartoResponse, ClienteResponse, ReservaResponse } from '../../services/api';
+import { getTipoQuarto } from '../../utils/quartoUtils';
 import { 
   converterParaBrasilia, 
   formatarDataInput, 
@@ -105,8 +106,11 @@ const Checkout: React.FC = () => {
         reservaService.listarReservas()
       ]);
       
+      // Ordenar quartos por número antes de filtrar
+      const quartosOrdenados = quartosData.sort((a, b) => parseInt(a.numero.toString()) - parseInt(b.numero.toString()));
+      
       // Filtrar apenas quartos OCUPADOS
-      const quartosOcupados = quartosData.filter(quarto => quarto.status === 'OCUPADO');
+      const quartosOcupados = quartosOrdenados.filter(quarto => quarto.status === 'OCUPADO');
       
       setQuartos(quartosOcupados);
       setClientes(clientesData);
@@ -316,7 +320,7 @@ const Checkout: React.FC = () => {
                 .filter(q => q.status === 'OCUPADO')
                 .map(quarto => (
                   <option key={quarto.id} value={quarto.id}>
-                    {quarto.numero} - {quarto.tipo} ({formatarMoeda(quarto.diaria)}/noite)
+                    {quarto.numero} - {getTipoQuarto(parseInt(quarto.numero.toString()))} ({formatarMoeda(quarto.diaria)}/noite)
                   </option>
                 ))}
             </select>
@@ -478,7 +482,7 @@ const Checkout: React.FC = () => {
                   <div>
                     <span className="text-blue-700 dark:text-blue-300">Quarto:</span>
                     <span className="ml-2 font-bold text-blue-900 dark:text-blue-100">
-                      {quarto.numero} - {quarto.tipo}
+                      {quarto.numero} - {getTipoQuarto(parseInt(quarto.numero.toString()))}
                     </span>
                   </div>
                   <div>
@@ -515,7 +519,7 @@ const Checkout: React.FC = () => {
         <div className="mt-8 flex justify-end space-x-4">
           <button
             type="button"
-            onClick={() => navigate('/user')}
+            onClick={() => navigate('/')}
             className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
           >
             Cancelar

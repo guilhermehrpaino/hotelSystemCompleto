@@ -223,9 +223,46 @@ export const quartoService = {
       
       // Log detalhado do erro
       if (error.response) {
-        console.error('Status do erro:', error.response.status);
-        console.error('Mensagem do erro:', error.response.data);
-        console.error('Headers:', error.response.headers);
+        console.error('📄 Status da resposta:', error.response.status);
+        console.error('📄 Dados da resposta:', error.response.data);
+        console.error('📄 Headers da resposta:', error.response.headers);
+      } else if (error.request) {
+        console.error('📡 Request feito sem resposta:', error.request);
+      } else {
+        console.error('⚙️ Erro na configuração:', error.message);
+      }
+      
+      throw error;
+    }
+  },
+
+  // Atualizar observação do quarto
+  async atualizarObservacaoQuarto(id: number, observacao: string): Promise<QuartoResponse> {
+    try {
+      console.log(`🔄 Iniciando atualização de observação do quarto ${id}`);
+      console.log(`📝 Observação: ${observacao}`);
+      
+      // Envia requisição PUT para o endpoint de observação
+      const response: AxiosResponse<QuartoResponse> = await api.put(`/quartos/${id}/observacao`, {
+        observacoes: observacao
+      });
+      
+      console.log(`✅ Observação do quarto ${id} atualizada`);
+      console.log('📊 Resposta completa do backend:', response.data);
+      
+      return response.data;
+    } catch (error: any) {
+      console.error(`❌ Erro ao atualizar observação do quarto ${id}:`, error);
+      
+      // Log detalhado do erro
+      if (error.response) {
+        console.error('📄 Status da resposta:', error.response.status);
+        console.error('📄 Dados da resposta:', error.response.data);
+        console.error('📄 Headers da resposta:', error.response.headers);
+      } else if (error.request) {
+        console.error('📡 Request feito sem resposta:', error.request);
+      } else {
+        console.error('⚙️ Erro na configuração:', error.message);
       }
       
       throw error;
@@ -279,13 +316,38 @@ export const reservaService = {
     }
   },
 
-  // Cancelar reserva
-  async cancelarReserva(id: number): Promise<ReservaResponse> {
+  // Cancelar reserva (usando DELETE com corpo da requisição)
+  async cancelarReserva(id: number, motivo?: string): Promise<ReservaResponse> {
     try {
-      const response: AxiosResponse<ReservaResponse> = await api.patch(`/reservas/${id}/cancelar`);
+      console.log(`🗑️ Iniciando cancelamento da reserva ${id} (DELETE)`);
+      if (motivo) {
+        console.log(`📝 Motivo do cancelamento: ${motivo}`);
+      }
+      
+      // Prepara os dados para enviar no corpo da requisição DELETE
+      const data = motivo ? { motivoCancelamento: motivo } : {};
+      
+      // Envia requisição DELETE com corpo da requisição
+      const response: AxiosResponse<ReservaResponse> = await api.delete(`/reservas/${id}`, { data });
+      
+      console.log(`✅ Reserva ${id} cancelada com sucesso`);
+      console.log('📊 Resposta completa do backend:', response.data);
+      
       return response.data;
-    } catch (error) {
-      console.error('Erro ao cancelar reserva:', error);
+    } catch (error: any) {
+      console.error(`❌ Erro ao cancelar reserva ${id}:`, error);
+      
+      // Log detalhado do erro
+      if (error.response) {
+        console.error('📄 Status da resposta:', error.response.status);
+        console.error('📄 Dados da resposta:', error.response.data);
+        console.error('📄 Headers da resposta:', error.response.headers);
+      } else if (error.request) {
+        console.error('📡 Request feito sem resposta:', error.request);
+      } else {
+        console.error('⚙️ Erro na configuração:', error.message);
+      }
+      
       throw error;
     }
   },

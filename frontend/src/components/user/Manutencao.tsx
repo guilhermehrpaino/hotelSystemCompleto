@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { quartoService } from '../../services/api';
 import { QuartoResponse } from '../../services/api';
-import { formatarDataBrasil } from '../../utils/dateUtils';
+import { formatarDataBrasil, getDataAtualInput } from '../../utils/dateUtils';
+import { getTipoQuarto } from '../../utils/quartoUtils';
 
 interface ManutencaoData {
   quartoId: number;
@@ -14,15 +15,17 @@ interface ManutencaoData {
 
 const Manutencao: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const quartoIdFromUrl = searchParams.get('quartoId');
   
   const [quartos, setQuartos] = useState<QuartoResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState<ManutencaoData>({
-    quartoId: 0,
+    quartoId: quartoIdFromUrl ? parseInt(quartoIdFromUrl) : 0,
     motivo: '',
-    dataInicio: new Date().toISOString().split('T')[0],
-    dataFim: '',
+    dataInicio: getDataAtualInput(),
+    dataFim: getDataAtualInput(),
     observacoes: ''
   });
 
@@ -38,7 +41,9 @@ const Manutencao: React.FC = () => {
     setIsLoading(true);
     try {
       const quartosData = await quartoService.listarQuartos();
-      setQuartos(quartosData);
+      // Ordenar quartos por número
+      const quartosOrdenados = quartosData.sort((a, b) => parseInt(a.numero.toString()) - parseInt(b.numero.toString()));
+      setQuartos(quartosOrdenados);
     } catch (error) {
       console.error('Erro ao carregar quartos:', error);
       setErrorMessage('Não foi possível carregar os quartos. Tente novamente.');
@@ -68,8 +73,13 @@ const Manutencao: React.FC = () => {
 
     setIsLoading(true);
     try {
-      // Simulação de solicitação de manutenção (você pode ajustar quando tiver a API)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Primeiro atualiza o status do quarto para MANUTENCAO
+      await quartoService.atualizarStatusQuarto(formData.quartoId, 'MANUTENCAO');
+      
+      // Depois salva a observação (se houver)
+      if (formData.observacoes.trim()) {
+        await quartoService.atualizarObservacaoQuarto(formData.quartoId, formData.observacoes);
+      }
       
       setShowSuccess(true);
       setTimeout(() => {
@@ -166,10 +176,10 @@ const Manutencao: React.FC = () => {
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               required
             >
-              <option value="">Selecione um quarto</option>
-              {quartos.map(quarto => (
+              <option value="">Selecione um quarto...</option>
+              {quartos.map((quarto: QuartoResponse) => (
                 <option key={quarto.id} value={quarto.id}>
-                  {quarto.numero} - {quarto.tipo} ({quarto.status})
+                  {quarto.numero} - {getTipoQuarto(parseInt(quarto.numero.toString()))}
                 </option>
               ))}
             </select>
@@ -187,7 +197,6 @@ const Manutencao: React.FC = () => {
               required
             >
               <option value="">Selecione um motivo</option>
-              <option value="limpeza">Limpeza</option>
               <option value="reparo">Reparo</option>
               <option value="manutencao-preventiva">Manutenção Preventiva</option>
               <option value="pintura">Pintura</option>
@@ -281,7 +290,7 @@ const Manutencao: React.FC = () => {
         <div className="mt-8 flex justify-end space-x-4">
           <button
             type="button"
-            onClick={() => navigate('/user')}
+            onClick={() => navigate('/')}
             className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
           >
             Cancelar

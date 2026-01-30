@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import NotificacaoDropdown from './common/NotificacaoDropdown';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,6 +17,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title }) => {
   const isAdmin = user?.role === 'ADMIN';
 
   const adminMenuItems = [
+    { id: 'dashboard', title: 'Dashboard', path: '/admin/dashboard' },
     { id: 'clientes', title: 'Gestão de Clientes', path: '/admin/clientes' },
     { id: 'quartos', title: 'Gestão de Quartos', path: '/admin/quartos' },
     { id: 'funcionarios', title: 'Gestão de Funcionários', path: '/admin/funcionarios' },
@@ -30,6 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title }) => {
     { id: 'checkin', title: 'Realizar Check-in', path: '/user/checkin' },
     { id: 'checkout', title: 'Realizar Check-out', path: '/user/checkout' },
     { id: 'status-quartos', title: 'Ver Status Quartos', path: '/user/status-quartos' },
+    { id: 'limpeza', title: 'Solicitar Limpeza', path: '/user/limpeza' },
     { id: 'manutencao', title: 'Solicitar Manutenção', path: '/user/manutencao' },
     { id: 'consultar-cliente', title: 'Consultar Cliente', path: '/user/consultar-cliente' },
   ];
@@ -91,6 +94,9 @@ const Layout: React.FC<LayoutProps> = ({ children, title }) => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
               <div className="flex justify-end items-center h-full">
                 <div className="flex items-center space-x-4">
+                  {/* Notificações */}
+                  <NotificacaoDropdown />
+                  
                   {/* Theme Toggle */}
                   <button
                     onClick={toggleTheme}
