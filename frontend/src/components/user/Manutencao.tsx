@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { quartoService } from '../../services/api';
 import { QuartoResponse } from '../../services/api';
 import { formatarDataBrasil, getDataAtualInput } from '../../utils/dateUtils';
@@ -15,14 +15,15 @@ interface ManutencaoData {
 
 const Manutencao: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const quartoIdFromUrl = searchParams.get('quartoId');
+  const location = useLocation();
+  const state = location.state as { quartoId?: number; quartoNumero?: number } || {};
   
   const [quartos, setQuartos] = useState<QuartoResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [quartoSelecionado, setQuartoSelecionado] = useState<QuartoResponse | null>(null);
   
   const [formData, setFormData] = useState<ManutencaoData>({
-    quartoId: quartoIdFromUrl ? parseInt(quartoIdFromUrl) : 0,
+    quartoId: state.quartoId || 0,
     motivo: '',
     dataInicio: getDataAtualInput(),
     dataFim: getDataAtualInput(),
@@ -36,6 +37,16 @@ const Manutencao: React.FC = () => {
   useEffect(() => {
     carregarQuartos();
   }, []);
+
+  useEffect(() => {
+    if (state.quartoId && quartos.length > 0) {
+      const quarto = quartos.find(q => q.id === state.quartoId);
+      if (quarto) {
+        setQuartoSelecionado(quarto);
+        setFormData(prev => ({ ...prev, quartoId: quarto.id }));
+      }
+    }
+  }, [state.quartoId, quartos]);
 
   const carregarQuartos = async () => {
     setIsLoading(true);
@@ -115,6 +126,33 @@ const Manutencao: React.FC = () => {
         </p>
       </div>
 
+      {/* Selected Room Info */}
+      {quartoSelecionado && (
+        <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 rounded-xl shadow-lg p-6 border border-blue-200 dark:border-blue-700 mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                Quarto Selecionado
+              </h3>
+              <div className="space-y-1">
+                <p className="text-blue-700 dark:text-blue-300">
+                  <span className="font-medium">Quarto:</span> {quartoSelecionado.numero}
+                </p>
+                <p className="text-blue-700 dark:text-blue-300">
+                  <span className="font-medium">Tipo:</span> {getTipoQuarto(parseInt(quartoSelecionado.numero.toString()))}
+                </p>
+                <p className="text-blue-700 dark:text-blue-300">
+                  <span className="font-medium">Diária:</span> {quartoSelecionado.diaria.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </div>
+            </div>
+            <div className="bg-blue-500 bg-opacity-20 rounded-full p-4">
+              <span className="text-3xl">🔧</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Success Modal */}
       {showSuccess && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -173,7 +211,12 @@ const Manutencao: React.FC = () => {
             <select
               value={formData.quartoId}
               onChange={(e) => setFormData(prev => ({ ...prev, quartoId: parseInt(e.target.value) }))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              disabled={quartoSelecionado !== null}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white ${
+                quartoSelecionado !== null 
+                  ? 'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 cursor-not-allowed' 
+                  : 'border-gray-300 dark:border-gray-600'
+              }`}
               required
             >
               <option value="">Selecione um quarto...</option>
@@ -183,6 +226,11 @@ const Manutencao: React.FC = () => {
                 </option>
               ))}
             </select>
+            {quartoSelecionado && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Quarto pré-selecionado não pode ser alterado
+              </p>
+            )}
           </div>
 
           {/* Motivo */}
@@ -290,7 +338,7 @@ const Manutencao: React.FC = () => {
         <div className="mt-8 flex justify-end space-x-4">
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/user/status-quartos')}
             className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
           >
             Cancelar

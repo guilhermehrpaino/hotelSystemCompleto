@@ -15,6 +15,7 @@ const ConsultarReservas: React.FC = () => {
   const [termoBusca, setTermoBusca] = useState<string>('');
   const [dataInicio, setDataInicio] = useState<string>('');
   const [dataFim, setDataFim] = useState<string>('');
+  const [filtroDisponibilidade, setFiltroDisponibilidade] = useState<string>('todos');
   const [showError, setShowError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [atualizandoStatus, setAtualizandoStatus] = useState(false);
@@ -31,9 +32,8 @@ const ConsultarReservas: React.FC = () => {
         quartoService.listarQuartos()
       ]);
       
-      // Filtrar apenas reservas que não são FINALIZADAS
-      const reservasAtivas = reservasData.filter(reserva => reserva.status !== 'FINALIZADA');
-      setReservas(reservasAtivas);
+      // Carregar todas as reservas, incluindo FINALIZADAS
+      setReservas(reservasData);
       setQuartos(quartosData);
       
       // Processar status automático dos quartos
@@ -293,7 +293,7 @@ const ConsultarReservas: React.FC = () => {
       console.log('✅ ADICIONANDO AÇÃO: Check-in');
       acoes.push({
         label: 'Check-in',
-        action: () => navigate('/user/checkin'),
+        action: () => navigate('/user/checkin', { state: { reservaId: reserva.id, quartoId: reserva.quartoId } }),
         color: 'text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300'
       });
     }
@@ -303,7 +303,7 @@ const ConsultarReservas: React.FC = () => {
       console.log('✅ ADICIONANDO AÇÃO: Check-out');
       acoes.push({
         label: 'Check-out',
-        action: () => navigate('/user/checkout'),
+        action: () => navigate('/user/checkout', { state: { reservaId: reserva.id, quartoId: reserva.quartoId } }),
         color: 'text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300'
       });
     }
@@ -340,6 +340,9 @@ const ConsultarReservas: React.FC = () => {
   };
 
   const reservasFiltradas = reservas.filter(reserva => {
+    // Excluir reservas finalizadas e canceladas da tabela principal
+    if (reserva.status === 'FINALIZADA' || reserva.status === 'CANCELADA') return false;
+    
     const statusMatch = filtroStatus === 'todos' || reserva.status === filtroStatus;
     const buscaMatch = termoBusca === '' || 
       reserva.clienteNome?.toLowerCase().includes(termoBusca.toLowerCase()) ||
@@ -354,7 +357,27 @@ const ConsultarReservas: React.FC = () => {
       dataMatch = dataMatch && reserva.checkIn <= dataFim;
     }
     
-    return statusMatch && buscaMatch && dataMatch;
+    // Filtro por disponibilidade de check-in/check-out
+    let disponibilidadeMatch = true;
+    const hoje = new Date().toISOString().split('T')[0];
+    
+    if (filtroDisponibilidade === 'checkin-hoje') {
+      disponibilidadeMatch = reserva.checkIn === hoje && reserva.status === 'RESERVADA';
+    } else if (filtroDisponibilidade === 'checkout-hoje') {
+      disponibilidadeMatch = reserva.checkOut === hoje && reserva.status === 'ATIVA';
+    } else if (filtroDisponibilidade === 'checkin-proximos') {
+      const seteDias = new Date();
+      seteDias.setDate(seteDias.getDate() + 7);
+      const seteDiasStr = seteDias.toISOString().split('T')[0];
+      disponibilidadeMatch = reserva.checkIn >= hoje && reserva.checkIn <= seteDiasStr && reserva.status === 'RESERVADA';
+    } else if (filtroDisponibilidade === 'checkout-proximos') {
+      const seteDias = new Date();
+      seteDias.setDate(seteDias.getDate() + 7);
+      const seteDiasStr = seteDias.toISOString().split('T')[0];
+      disponibilidadeMatch = reserva.checkOut >= hoje && reserva.checkOut <= seteDiasStr && reserva.status === 'ATIVA';
+    }
+    
+    return statusMatch && buscaMatch && dataMatch && disponibilidadeMatch;
   });
 
   const formatarMoeda = (valor: number) => {
@@ -381,7 +404,7 @@ const ConsultarReservas: React.FC = () => {
       <div className="mb-8">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Consultar Reservas</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestão de Reservas</h1>
             <p className="mt-2 text-gray-600 dark:text-gray-400">
               Visualize e gerencie todas as reservas do hotel.
             </p>
@@ -410,75 +433,101 @@ const ConsultarReservas: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{reservas.length}</p>
-            </div>
-            <div className="text-3xl">📋</div>
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Ativas</p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+              <p className="text-sm font-medium text-green-600 dark:text-green-300">Ativas</p>
+              <p className="text-3xl font-bold text-green-900 dark:text-green-100">
                 {reservas.filter(r => r.status === 'ATIVA').length}
               </p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1">Hóspedes no hotel</p>
             </div>
-            <div className="text-3xl">🏨</div>
+            <div className="bg-green-500 bg-opacity-20 rounded-full p-4">
+              <span className="text-3xl">🏨</span>
+            </div>
           </div>
         </div>
         
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
+        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900 dark:to-yellow-800 rounded-xl shadow-lg p-6 border border-yellow-200 dark:border-yellow-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Reservadas</p>
-              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+              <p className="text-sm font-medium text-yellow-600 dark:text-yellow-300">Reservadas</p>
+              <p className="text-3xl font-bold text-yellow-900 dark:text-yellow-100">
                 {reservas.filter(r => r.status === 'RESERVADA').length}
               </p>
+              <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">Check-ins pendentes</p>
             </div>
-            <div className="text-3xl">📅</div>
+            <div className="bg-yellow-500 bg-opacity-20 rounded-full p-4">
+              <span className="text-3xl">📅</span>
+            </div>
           </div>
         </div>
         
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 rounded-xl shadow-lg p-6 border border-blue-200 dark:border-blue-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Finalizadas</p>
-              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              <p className="text-sm font-medium text-blue-600 dark:text-blue-300">Finalizadas</p>
+              <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
                 {reservas.filter(r => r.status === 'FINALIZADA').length}
               </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Concluídas</p>
             </div>
-            <div className="text-3xl">✅</div>
+            <div className="bg-blue-500 bg-opacity-20 rounded-full p-4">
+              <span className="text-3xl">✅</span>
+            </div>
           </div>
           <button
             onClick={() => navigate('/user/consultar-reservas-finalizadas')}
-            className="mt-3 w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors duration-200"
+            className="mt-4 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all duration-200 transform hover:scale-105"
           >
-            Ver Reservas Finalizadas
+            Ver Detalhes
           </button>
+        </div>
+        
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900 dark:to-purple-800 rounded-xl shadow-lg p-6 border border-purple-200 dark:border-purple-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-purple-600 dark:text-purple-300">Total</p>
+              <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
+                {reservas.length}
+              </p>
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Todas as reservas</p>
+            </div>
+            <div className="bg-purple-500 bg-opacity-20 rounded-full p-4">
+              <span className="text-3xl">📊</span>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Filtros */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div>
+      <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-600 mb-8">
+        <div className="flex items-center mb-4">
+          <svg className="w-5 h-5 text-gray-600 dark:text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z" />
+          </svg>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Filtros de Busca</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+          <div className="lg:col-span-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Buscar
+              Buscar por Cliente ou Quarto
             </label>
-            <input
-              type="text"
-              value={termoBusca}
-              onChange={(e) => setTermoBusca(e.target.value)}
-              placeholder="Cliente, quarto ou tipo..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={termoBusca}
+                onChange={(e) => setTermoBusca(e.target.value)}
+                className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="Nome do cliente ou número do quarto..."
+              />
+              <svg className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
           </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Data inicial
+              Data Inicial
             </label>
             <input
               type="date"
@@ -491,7 +540,7 @@ const ConsultarReservas: React.FC = () => {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Data final
+              Data Final
             </label>
             <input
               type="date"
@@ -513,120 +562,152 @@ const ConsultarReservas: React.FC = () => {
             >
               <option value="todos">Todos</option>
               <option value="ATIVA">Ativas</option>
-              <option value="CANCELADA">Canceladas</option>
               <option value="RESERVADA">Reservadas</option>
             </select>
           </div>
           
-          <div className="flex items-end">
-            <button
-              onClick={() => {
-                setFiltroStatus('todos');
-                setTermoBusca('');
-                setDataInicio('');
-                setDataFim('');
-              }}
-              className="w-full px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors duration-200"
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Disponibilidade
+            </label>
+            <select
+              value={filtroDisponibilidade}
+              onChange={(e) => setFiltroDisponibilidade(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
             >
-              Limpar Filtros
-            </button>
+              <option value="todos">Todas</option>
+              <option value="checkin-hoje">Check-in Hoje</option>
+              <option value="checkout-hoje">Check-out Hoje</option>
+              <option value="checkin-proximos">Check-in Próximos 7 dias</option>
+              <option value="checkout-proximos">Check-out Próximos 7 dias</option>
+            </select>
           </div>
+        </div>
+        
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={() => {
+              setFiltroStatus('todos');
+              setTermoBusca('');
+              setDataInicio('');
+              setDataFim('');
+              setFiltroDisponibilidade('todos');
+            }}
+            className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Limpar Filtros
+          </button>
         </div>
       </div>
 
-      {/* Lista de Reservas */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+      {/* Tabela de Reservas */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 border-b border-gray-200 dark:border-gray-600">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Lista de Reservas ({reservasFiltradas.length})
+            </h3>
+            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <span>Reservas ativas</span>
+            </div>
+          </div>
+        </div>
+        
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   ID
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Cliente
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Quarto
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Período
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Hóspedes
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Valor
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Status Reserva
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Status Quarto
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Quarto
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Ações
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {reservasFiltradas.map((reserva) => (
-                <tr key={reserva.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                <tr key={reserva.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                     #{reserva.id}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-2 py-2 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900 dark:text-white">
                       {reserva.clienteNome || 'Cliente não encontrado'}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-2 py-2 whitespace-nowrap">
                     <div className="text-sm text-gray-900 dark:text-white">
                       {reserva.quartoNumero || 'N/A'} - {reserva.quartoNumero ? getTipoQuarto(parseInt(reserva.quartoNumero.toString())) : ''}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-2 py-2 whitespace-nowrap">
                     <div className="text-sm text-gray-900 dark:text-white">
                       {formatarData(reserva.checkIn)} - {formatarData(reserva.checkOut)}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-2 py-2 whitespace-nowrap">
                     <div className="text-sm text-gray-900 dark:text-white">
                       {reserva.numeroHospedes}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-2 py-2 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900 dark:text-white">
                       {formatarMoeda(reserva.valorTotal)}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-2 py-2 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusReservaColor(reserva.status || 'DESCONHECIDO')}`}>
                       <span className="mr-1">{getStatusReservaIcon(reserva.status || 'DESCONHECIDO')}</span>
                       {reserva.status || 'DESCONHECIDO'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-2 py-2 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusQuartoColor(getStatusQuarto(reserva))}`}>
                       <span className="mr-1">{getStatusQuartoIcon(getStatusQuarto(reserva))}</span>
                       {getStatusQuarto(reserva)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-2 py-2 whitespace-nowrap text-sm font-medium">
                     {getAcoesDisponiveis(reserva).length > 0 ? (
                       getAcoesDisponiveis(reserva).map((acao, index) => (
                         <button
                           key={index}
                           onClick={acao.action}
-                          className={`${acao.color} ${index < getAcoesDisponiveis(reserva).length - 1 ? 'mr-3' : ''}`}
+                          className={`${acao.color} ${index < getAcoesDisponiveis(reserva).length - 1 ? 'mr-2' : ''} text-sm font-medium transition-colors duration-200`}
                         >
                           {acao.label}
                         </button>
                       ))
                     ) : (
-                      <span className="text-gray-400 dark:text-gray-500 text-sm">
-                        Nenhuma ação disponível
-                      </span>
+                      <span className="text-gray-400 dark:text-gray-500 text-sm">Nenhuma ação</span>
                     )}
                   </td>
                 </tr>

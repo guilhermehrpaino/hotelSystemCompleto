@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { quartoService, clienteService, reservaService } from '../../services/api';
 import { QuartoResponse, ClienteResponse, ReservaResponse } from '../../services/api';
 import { getTipoQuarto } from '../../utils/quartoUtils';
@@ -27,6 +27,7 @@ interface CheckoutData {
 
 const Checkout: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   
   const [quartos, setQuartos] = useState<QuartoResponse[]>([]);
   const [clientes, setClientes] = useState<ClienteResponse[]>([]);
@@ -49,6 +50,16 @@ const Checkout: React.FC = () => {
   useEffect(() => {
     carregarDados();
   }, []);
+
+  // Auto-preencher quarto se vier da página de reservas
+  useEffect(() => {
+    if (location.state && quartos.length > 0) {
+      const { quartoId } = location.state as { quartoId?: number };
+      if (quartoId) {
+        setFormData(prev => ({ ...prev, quartoId }));
+      }
+    }
+  }, [location.state, quartos]);
 
   useEffect(() => {
     calcularValorTotal();
@@ -519,7 +530,7 @@ const Checkout: React.FC = () => {
         <div className="mt-8 flex justify-end space-x-4">
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/user/consultar-reservas')}
             className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
           >
             Cancelar

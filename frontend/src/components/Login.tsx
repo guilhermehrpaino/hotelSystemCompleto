@@ -71,13 +71,15 @@ const Login: React.FC = () => {
         <div className="glass-effect rounded-2xl p-8 space-y-8">
           {/* Header */}
           <div className="text-center">
-            <div className="mx-auto h-16 w-16 flex items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 shadow-lg">
-              <svg className="h-10 w-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
+            <div className="mx-auto h-24 w-24 flex items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg">
+              <img 
+                src="/assets/logo.png" 
+                alt="Hotel System Logo" 
+                className="w-full h-full object-contain"
+              />
             </div>
             <h2 className="mt-6 text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-              Sistema Hoteleiro
+              Hotel System
             </h2>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
               Faça login para acessar o sistema

@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { reservaService, ReservaResponse } from '../../services/api';
-import { quartoService, QuartoResponse } from '../../services/api';
-import { clienteService, ClienteResponse } from '../../services/api';
+import { reservaService } from '../../services/api';
+import { quartoService } from '../../services/api';
+import { clienteService } from '../../services/api';
 import { pagamentoService } from '../../services/api';
-import { formatarDataBrasil } from '../../utils/dateUtils';
+import { getTipoQuarto } from '../../utils/quartoUtils';
 import ErrorModal from '../common/ErrorModal';
+import KPICards from './dashboard/KPICards';
+import ChartBar from './dashboard/ChartBar';
+import RoomStatus from './dashboard/RoomStatus';
+import RecentActivities from './dashboard/RecentActivities';
+import Alerts from './dashboard/Alerts';
 
 interface DashboardStats {
   totalReservas: number;
@@ -16,9 +21,15 @@ interface DashboardStats {
   quartosDisponiveis: number;
   quartosOcupados: number;
   quartosManutencao: number;
+  quartosSujo: number;
   totalClientes: number;
+  clientesNovosMes: number;
   totalReceita: number;
+  receitaMes: number;
+  receitaHoje: number;
   ocupacaoAtual: number;
+  ocupacaoMedia: number;
+  ticketMedio: number;
 }
 
 interface RelatorioMensal {
@@ -26,16 +37,37 @@ interface RelatorioMensal {
   reservas: number;
   receita: number;
   ocupacao: number;
+  hospedes: number;
+}
+
+interface AtividadeRecente {
+  id: string;
+  tipo: string;
+  descricao: string;
+  tempo: string;
+  icone: string;
+  cor: string;
+  checkIn?: string;
+  checkOut?: string;
+  quartoInfo?: string;
+}
+
+interface Alerta {
+  id: string;
+  tipo: string;
+  mensagem: string;
+  severidade: 'baixa' | 'media' | 'alta';
+  tempo: string;
 }
 
 const DashboardAdmin: React.FC = () => {
   const navigate = useNavigate();
-  
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [relatorioMensal, setRelatorioMensal] = useState<RelatorioMensal[]>([]);
-  const [reservasRecentes, setReservasRecentes] = useState<ReservaResponse[]>([]);
+  const [atividadesRecentes, setAtividadesRecentes] = useState<AtividadeRecente[]>([]);
+  const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [periodoRelatorio, setPeriodoRelatorio] = useState('6'); // últimos 6 meses
+  const [periodoRelatorio, setPeriodoRelatorio] = useState('6');
   const [showError, setShowError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -46,45 +78,17 @@ const DashboardAdmin: React.FC = () => {
   const carregarDadosDashboard = async () => {
     setIsLoading(true);
     try {
-      console.log('🔄 Iniciando carregamento do Dashboard Admin...');
+      const [reservasData, quartosData, clientesData, pagamentosData] = await Promise.all([
+        reservaService.listarReservas(),
+        quartoService.listarQuartos(),
+        clienteService.listarClientes(),
+        pagamentoService.listarPagamentos()
+      ]);
+
+      const hoje = new Date();
+      const mesAtual = hoje.getMonth();
+      const anoAtual = hoje.getFullYear();
       
-      // Carregar todos os dados com tratamento de erro individual
-      let reservasData: any[] = [];
-      let quartosData: any[] = [];
-      let clientesData: any[] = [];
-      let pagamentosData: any[] = [];
-
-      try {
-        reservasData = await reservaService.listarReservas();
-        console.log('✅ Reservas carregadas:', reservasData.length);
-      } catch (error) {
-        console.error('❌ Erro ao carregar reservas:', error);
-      }
-
-      try {
-        quartosData = await quartoService.listarQuartos();
-        console.log('✅ Quartos carregados:', quartosData.length);
-      } catch (error) {
-        console.error('❌ Erro ao carregar quartos:', error);
-      }
-
-      try {
-        clientesData = await clienteService.listarClientes();
-        console.log('✅ Clientes carregados:', clientesData.length);
-      } catch (error) {
-        console.error('❌ Erro ao carregar clientes:', error);
-      }
-
-      try {
-        pagamentosData = await pagamentoService.listarPagamentos();
-        console.log('✅ Pagamentos carregados:', pagamentosData.length);
-      } catch (error) {
-        console.error('❌ Erro ao carregar pagamentos:', error);
-        // Se pagamentos falhar, usar array vazio para não quebrar o cálculo
-        pagamentosData = [];
-      }
-
-      // Calcular estatísticas com valores padrão
       const totalReservas = reservasData.length || 0;
       const reservasAtivas = reservasData.filter((r: any) => r.status === 'ATIVA').length || 0;
       const reservasFinalizadas = reservasData.filter((r: any) => r.status === 'FINALIZADA').length || 0;
@@ -94,63 +98,76 @@ const DashboardAdmin: React.FC = () => {
       const quartosDisponiveis = quartosData.filter((q: any) => q.status === 'DISPONIVEL').length || 0;
       const quartosOcupados = quartosData.filter((q: any) => q.status === 'OCUPADO').length || 0;
       const quartosManutencao = quartosData.filter((q: any) => q.status === 'MANUTENCAO').length || 0;
+      const quartosSujo = quartosData.filter((q: any) => q.status === 'SUJO').length || 0;
       
       const totalClientes = clientesData.length || 0;
+      const clientesNovosMes = clientesData.filter((c: any) => {
+        const dataCliente = new Date(c.createdAt);
+        return dataCliente.getMonth() === mesAtual && dataCliente.getFullYear() === anoAtual;
+      }).length || 0;
       
-      // Calcular receita total com tratamento de erro
       const totalReceita = pagamentosData.reduce((acc: number, pgto: any) => {
         const valor = pgto.valor || pgto.valorTotal || 0;
         return acc + (typeof valor === 'number' ? valor : parseFloat(valor) || 0);
       }, 0);
       
-      // Calcular taxa de ocupação atual
-      const ocupacaoAtual = totalQuartos > 0 ? (quartosOcupados / totalQuartos) * 100 : 0;
+      const receitaMes = pagamentosData
+        .filter((pgto: any) => {
+          const dataPgto = new Date(pgto.dataPagamento || pgto.createdAt);
+          return dataPgto.getMonth() === mesAtual && dataPgto.getFullYear() === anoAtual;
+        })
+        .reduce((acc: number, pgto: any) => {
+          const valor = pgto.valor || pgto.valorTotal || 0;
+          return acc + (typeof valor === 'number' ? valor : parseFloat(valor) || 0);
+        }, 0);
+      
+      const receitaHoje = pagamentosData
+        .filter((pgto: any) => {
+          const dataPgto = new Date(pgto.dataPagamento || pgto.createdAt);
+          return dataPgto.toDateString() === hoje.toDateString();
+        })
+        .reduce((acc: number, pgto: any) => {
+          const valor = pgto.valor || pgto.valorTotal || 0;
+          return acc + (typeof valor === 'number' ? valor : parseFloat(valor) || 0);
+        }, 0);
+      
+      const quartosOcupadosHoje = reservasData.filter((r: any) => {
+        const hoje = new Date();
+        const checkIn = new Date(r.checkIn);
+        const checkOut = new Date(r.checkOut);
+        return hoje >= checkIn && hoje < checkOut && r.status === 'ATIVA';
+      }).length;
+      
+      const ocupacaoAtual = totalQuartos > 0 ? (quartosOcupadosHoje / totalQuartos) * 100 : 0;
+      const ticketMedio = totalReservas > 0 ? totalReceita / totalReservas : 0;
+      
+      const diasNoMes = new Date(anoAtual, mesAtual + 1, 0).getDate();
+      let totalOcupacaoDiaria = 0;
+      for (let dia = 1; dia <= diasNoMes; dia++) {
+        const dataDia = new Date(anoAtual, mesAtual, dia);
+        const quartosOcupadosDia = reservasData.filter((r: any) => {
+          const checkIn = new Date(r.checkIn);
+          const checkOut = new Date(r.checkOut);
+          return dataDia >= checkIn && dataDia < checkOut && r.status === 'ATIVA';
+        }).length;
+        totalOcupacaoDiaria += quartosOcupadosDia;
+      }
+      const ocupacaoMedia = totalQuartos > 0 ? (totalOcupacaoDiaria / (diasNoMes * totalQuartos)) * 100 : 0;
 
-      const statsData = {
-        totalReservas,
-        reservasAtivas,
-        reservasFinalizadas,
-        reservasCanceladas,
-        totalQuartos,
-        quartosDisponiveis,
-        quartosOcupados,
-        quartosManutencao,
-        totalClientes,
-        totalReceita,
-        ocupacaoAtual
-      };
+      setStats({
+        totalReservas, reservasAtivas, reservasFinalizadas, reservasCanceladas,
+        totalQuartos, quartosDisponiveis, quartosOcupados, quartosManutencao, quartosSujo,
+        totalClientes, clientesNovosMes, totalReceita, receitaMes, receitaHoje,
+        ocupacaoAtual, ocupacaoMedia, ticketMedio
+      });
 
-      console.log('📊 Estatísticas calculadas:', statsData);
-      setStats(statsData);
-
-      // Gerar relatório mensal
       gerarRelatorioMensal(reservasData, pagamentosData, quartosData);
-
-      // Reservas recentes (últimas 10)
-      const recentes = reservasData
-        .sort((a: any, b: any) => new Date(b.createdAt || b.checkIn).getTime() - new Date(a.createdAt || a.checkIn).getTime())
-        .slice(0, 10);
-      setReservasRecentes(recentes);
+      gerarAtividadesRecentes(reservasData, quartosData);
+      gerarAlertas(reservasData, quartosData);
 
     } catch (error) {
-      console.error('❌ Erro geral no carregamento do dashboard:', error);
       setErrorMessage('Não foi possível carregar os dados do dashboard. Tente novamente.');
       setShowError(true);
-      
-      // Definir valores padrão para não quebrar a interface
-      setStats({
-        totalReservas: 0,
-        reservasAtivas: 0,
-        reservasFinalizadas: 0,
-        reservasCanceladas: 0,
-        totalQuartos: 0,
-        quartosDisponiveis: 0,
-        quartosOcupados: 0,
-        quartosManutencao: 0,
-        totalClientes: 0,
-        totalReceita: 0,
-        ocupacaoAtual: 0
-      });
     } finally {
       setIsLoading(false);
     }
@@ -158,324 +175,296 @@ const DashboardAdmin: React.FC = () => {
 
   const gerarRelatorioMensal = (reservas: any[], pagamentos: any[], quartos: any[]) => {
     try {
-      console.log('📈 Gerando relatório mensal...');
       const meses = [];
       const hoje = new Date();
       
       for (let i = parseInt(periodoRelatorio) - 1; i >= 0; i--) {
         const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-        const mesNome = data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        const mesNome = data.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
         
         const reservasMes = reservas.filter((r: any) => {
-          try {
-            const dataReserva = new Date(r.createdAt || r.checkIn);
-            return dataReserva.getMonth() === data.getMonth() && 
-                   dataReserva.getFullYear() === data.getFullYear();
-          } catch (error) {
-            return false;
-          }
+          const dataReserva = new Date(r.createdAt || r.checkIn);
+          return dataReserva.getMonth() === data.getMonth() && 
+                 dataReserva.getFullYear() === data.getFullYear();
         });
 
         const receitaMes = pagamentos
           .filter((pgto: any) => {
-            try {
-              const dataPgto = new Date(pgto.dataPagamento || pgto.createdAt);
-              return dataPgto.getMonth() === data.getMonth() && 
-                     dataPgto.getFullYear() === data.getFullYear();
-            } catch (error) {
-              return false;
-            }
+            const dataPgto = new Date(pgto.dataPagamento || pgto.createdAt);
+            return dataPgto.getMonth() === data.getMonth() && 
+                   dataPgto.getFullYear() === data.getFullYear();
           })
           .reduce((acc: number, pgto: any) => {
             const valor = pgto.valor || pgto.valorTotal || 0;
             return acc + (typeof valor === 'number' ? valor : parseFloat(valor) || 0);
           }, 0);
 
-        // Calcular ocupação média do mês
         const diasNoMes = new Date(data.getFullYear(), data.getMonth() + 1, 0).getDate();
-        const ocupacaoDiaria = [];
+        let totalOcupacaoDiaria = 0;
         
         for (let dia = 1; dia <= diasNoMes; dia++) {
           const dataDia = new Date(data.getFullYear(), data.getMonth(), dia);
           const quartosOcupadosDia = reservas.filter((r: any) => {
-            try {
-              const checkIn = new Date(r.checkIn);
-              const checkOut = new Date(r.checkOut);
-              return dataDia >= checkIn && dataDia < checkOut && r.status === 'ATIVA';
-            } catch (error) {
-              return false;
-            }
+            const checkIn = new Date(r.checkIn);
+            const checkOut = new Date(r.checkOut);
+            return dataDia >= checkIn && dataDia < checkOut && r.status === 'ATIVA';
           }).length;
-          
-          ocupacaoDiaria.push(quartosOcupadosDia);
+          totalOcupacaoDiaria += quartosOcupadosDia;
         }
         
         const ocupacaoMedia = quartos.length > 0 
-          ? (ocupacaoDiaria.reduce((acc, val) => acc + val, 0) / (diasNoMes * quartos.length)) * 100 
+          ? (totalOcupacaoDiaria / (diasNoMes * quartos.length)) * 100 
           : 0;
+
+        const hospedesMes = reservasMes.reduce((total: number, reserva: any) => {
+          const hospedes = reserva.numeroHospedes ?? reserva.hospedes ?? 1;
+          return total + (typeof hospedes === 'number' ? hospedes : parseInt(hospedes) || 1);
+        }, 0);
 
         meses.push({
           mes: mesNome,
           reservas: reservasMes.length,
           receita: receitaMes,
-          ocupacao: Math.round(ocupacaoMedia * 10) / 10
+          ocupacao: Math.round(ocupacaoMedia * 10) / 10,
+          hospedes: hospedesMes
         });
       }
       
-      console.log('📊 Relatório mensal gerado:', meses);
       setRelatorioMensal(meses);
     } catch (error) {
-      console.error('❌ Erro ao gerar relatório mensal:', error);
-      // Definir dados vazios para não quebrar a interface
       setRelatorioMensal([]);
     }
   };
 
-  const formatarMoeda = (valor: number) => {
-    return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const gerarAtividadesRecentes = (reservas: any[], quartos: any[]) => {
+    const atividades: AtividadeRecente[] = [];
+    const agora = new Date();
+
+    // Últimas reservas com status "RESERVADA" e "ATIVA"
+    reservas
+      .filter((r: any) => r.status === 'RESERVADA' || r.status === 'ATIVA')
+      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 8)
+      .forEach((reserva: any) => {
+        const dataReserva = new Date(reserva.createdAt);
+        const diffMs = agora.getTime() - dataReserva.getTime();
+        const diffMin = Math.floor(diffMs / (1000 * 60));
+        const diffHoras = Math.floor(diffMin / 60);
+        const diffDias = Math.floor(diffHoras / 24);
+
+        let tempo = '';
+        if (diffMin < 5) tempo = 'Agora';
+        else if (diffMin < 60) tempo = `${diffMin} min atrás`;
+        else if (diffHoras < 24) tempo = `${diffHoras}h atrás`;
+        else tempo = `${diffDias} dia(s) atrás`;
+
+        // Tentar diferentes formas de obter o nome do cliente
+        const clienteNome = reserva.cliente?.nome || 
+                           reserva.nomeCliente || 
+                           reserva.clienteNome || 
+                           reserva.clienteNome || 
+                           'Cliente';
+        
+        // Obter o número do quarto - CAMPO CORRETO: quartoNumero
+        const numeroFinal = reserva.quartoNumero || 'N/A';
+        
+        console.log('DEBUG - Usando quartoNumero:', numeroFinal);
+        
+        // Obter o tipo do quarto usando o utilitário baseado no número
+        let quartoTipo = 'Standard';
+        if (numeroFinal !== 'N/A' && !isNaN(parseInt(numeroFinal))) {
+          quartoTipo = getTipoQuarto(parseInt(numeroFinal));
+        } else {
+          // Fallback para tipos diretos do backend
+          quartoTipo = reserva.quarto?.tipo || 
+                        reserva.tipoQuarto || 
+                        reserva.quartoTipo || 
+                        'Standard';
+        }
+        
+        // Formatar datas de check-in e check-out
+        const checkIn = reserva.checkIn ? 
+          new Date(reserva.checkIn).toLocaleDateString('pt-BR') : 
+          'N/A';
+        const checkOut = reserva.checkOut ? 
+          new Date(reserva.checkOut).toLocaleDateString('pt-BR') : 
+          'N/A';
+
+        atividades.push({
+          id: reserva.id || `reserva-${Date.now()}`,
+          tipo: 'reserva',
+          descricao: `${clienteNome} - ${reserva.status}`,
+          tempo: tempo,
+          icone: '📅',
+          cor: 'text-blue-600',
+          checkIn: checkIn,
+          checkOut: checkOut,
+          quartoInfo: `${numeroFinal} - ${quartoTipo}`
+        });
+      });
+
+    setAtividadesRecentes(atividades);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ATIVA':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'FINALIZADA':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-      case 'CANCELADA':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case 'RESERVADA':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+  const gerarAlertas = (reservas: any[], quartos: any[]) => {
+    const novosAlertas: Alerta[] = [];
+    const agora = new Date();
+
+    const quartosSujo = quartos.filter((q: any) => q.status === 'SUJO').length;
+    if (quartosSujo > 0) {
+      novosAlertas.push({
+        id: 'quartos-sujos',
+        tipo: 'limpeza',
+        mensagem: `${quartosSujo} quarto(s) precisam de limpeza`,
+        severidade: 'media',
+        tempo: 'Agora'
+      });
     }
+
+    const ocupacaoAtual = quartos.length > 0 ? (quartos.filter((q: any) => q.status === 'OCUPADO').length / quartos.length) * 100 : 0;
+    if (ocupacaoAtual < 30) {
+      novosAlertas.push({
+        id: 'baixa-ocupacao',
+        tipo: 'ocupacao',
+        mensagem: `Taxa de ocupação baixa: ${ocupacaoAtual.toFixed(1)}%`,
+        severidade: 'baixa',
+        tempo: 'Hoje'
+      });
+    }
+
+    const reservasHoje = reservas.filter((r: any) => {
+      const checkIn = new Date(r.checkIn);
+      return checkIn.toDateString() === agora.toDateString() && r.status === 'RESERVADA';
+    }).length;
+    
+    if (reservasHoje > 0) {
+      novosAlertas.push({
+        id: 'checkins-hoje',
+        tipo: 'checkin',
+        mensagem: `${reservasHoje} check-in(s) agendado(s) para hoje`,
+        severidade: 'baixa',
+        tempo: 'Hoje'
+      });
+    }
+
+    setAlertas(novosAlertas.slice(0, 4));
+  };
+
+  const formatarDataHora = (data: Date) => {
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(data);
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Carregando dashboard...</p>
+          <div className="relative">
+            <div className="animate-spin rounded-full h-20 w-20 border-4 border-indigo-200 dark:border-indigo-800 border-t-indigo-600"></div>
+            <div className="absolute inset-0 rounded-full h-20 w-20 border-4 border-transparent border-t-indigo-400 animate-ping"></div>
+          </div>
+          <p className="mt-8 text-xl font-semibold text-gray-600 dark:text-gray-300">Carregando dashboard...</p>
         </div>
       </div>
     );
   }
 
-  if (!stats) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-gray-600 dark:text-gray-400">Não foi possível carregar os dados.</p>
-        </div>
-      </div>
-    );
-  }
+  const maxReservas = Math.max(...relatorioMensal.map(r => r.reservas), 10);
+  const maxReceita = Math.max(...relatorioMensal.map(r => r.receita), 1000);
+  const maxOcupacao = 100;
+  const maxHospedes = Math.max(...relatorioMensal.map(r => r.hospedes || 0), 10);
+
+  const reservasChartData = relatorioMensal.map(r => ({
+    mes: r.mes,
+    value: r.reservas
+  }));
+
+  const receitaChartData = relatorioMensal.map(r => ({
+    mes: r.mes,
+    value: r.receita
+  }));
+
+  const hospedesChartData = relatorioMensal.map(r => ({
+    mes: r.mes,
+    value: r.hospedes || 0
+  }));
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard Administrativo</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Visão geral do sistema e relatórios
-          </p>
-        </div>
-
-        {/* Cards de Estatísticas */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white text-sm font-bold">📊</span>
-                </div>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Reservas</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalReservas}</p>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 md:p-6">
+      <div className="mb-8">
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-cyan-600 bg-clip-text text-transparent">
+                Dashboard Administrativo
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-2 text-lg">
+                Visão geral do hotel • {formatarDataHora(new Date())}
+              </p>
             </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white text-sm font-bold">🏨</span>
-                </div>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Taxa Ocupação</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.ocupacaoAtual.toFixed(1)}%</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white text-sm font-bold">💰</span>
-                </div>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Receita Total</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatarMoeda(stats.totalReceita)}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white text-sm font-bold">👥</span>
-                </div>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Clientes</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalClientes}</p>
-              </div>
+            <div className="flex items-center space-x-4">
+              <select
+                value={periodoRelatorio}
+                onChange={(e) => setPeriodoRelatorio(e.target.value)}
+                className="px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm hover:shadow-md transition-all duration-200"
+              >
+                <option value="3">Últimos 3 meses</option>
+                <option value="6">Últimos 6 meses</option>
+                <option value="12">Últimos 12 meses</option>
+              </select>
             </div>
           </div>
         </div>
-
-        {/* Gráfico de Relatório Mensal */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Relatório Mensal</h2>
-            <select
-              value={periodoRelatorio}
-              onChange={(e) => setPeriodoRelatorio(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-            >
-              <option value="3">Últimos 3 meses</option>
-              <option value="6">Últimos 6 meses</option>
-              <option value="12">Últimos 12 meses</option>
-            </select>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Mês
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Reservas
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Receita
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Ocupação Média
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {relatorioMensal.map((mes, index) => (
-                  <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {mes.mes}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      {mes.reservas}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      {formatarMoeda(mes.receita)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      <div className="flex items-center">
-                        <div className="flex-1 mr-2">
-                          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                            <div 
-                              className="bg-blue-600 h-2 rounded-full" 
-                              style={{ width: `${mes.ocupacao}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                        <span className="text-xs font-medium">{mes.ocupacao}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Reservas Recentes */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Reservas Recentes</h2>
-            <button
-              onClick={() => navigate('/user/consultar-reservas')}
-              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
-            >
-              Ver todas
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Cliente
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Quarto
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Período
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {reservasRecentes.map((reserva) => (
-                  <tr key={reserva.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      #{reserva.id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      {reserva.clienteNome}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      {reserva.quartoNumero}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      {formatarDataBrasil(reserva.checkIn)} - {formatarDataBrasil(reserva.checkOut)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(reserva.status)}`}>
-                        {reserva.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Modal de Erro */}
-        {showError && (
-          <ErrorModal
-            isOpen={showError}
-            title="Erro"
-            message={errorMessage}
-            onClose={() => setShowError(false)}
-          />
-        )}
       </div>
+
+      <KPICards stats={stats} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <ChartBar
+          title="Reservas Mensais"
+          data={reservasChartData}
+          color="text-blue-600"
+          maxValue={maxReservas}
+          gradientId="reservasGradient"
+        />
+        <ChartBar
+          title="Receita Mensal"
+          data={receitaChartData}
+          color="text-emerald-600"
+          maxValue={maxReceita}
+          unit="BRL"
+          gradientId="receitaGradient"
+        />
+        <ChartBar
+          title="Quantidade de Hóspedes"
+          data={hospedesChartData}
+          color="text-purple-600"
+          maxValue={maxHospedes}
+          gradientId="hospedesGradient"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <RoomStatus stats={stats} />
+          <Alerts alertas={alertas} />
+        </div>
+        <div className="space-y-6">
+          <RecentActivities atividades={atividadesRecentes} />
+        </div>
+      </div>
+
+      <ErrorModal
+        isOpen={showError}
+        onClose={() => setShowError(false)}
+        title="Erro ao Carregar Dados"
+        message={errorMessage}
+      />
     </div>
   );
 };
