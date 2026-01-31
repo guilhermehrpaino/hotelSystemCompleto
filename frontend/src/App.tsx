@@ -4,13 +4,10 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificacaoProvider } from './contexts/NotificacaoContext';
 import Login from './components/Login';
-import Dashboard from './components/Dashboard';
+import DashboardUser from './components/user/DashboardUser';
 import Layout from './components/Layout';
-import CadastrarCliente from './components/admin/CadastrarCliente';
 import ListaClientes from './components/admin/ListaClientes';
-import CadastrarQuarto from './components/admin/CadastrarQuarto';
 import ListaQuartos from './components/admin/ListaQuartos';
-import CadastrarFuncionario from './components/admin/CadastrarFuncionario';
 import ListaFuncionarios from './components/admin/ListaFuncionarios';
 import AlterarStatusQuarto from './components/admin/AlterarStatusQuarto';
 import Relatorio from './components/admin/Relatorio';
@@ -61,7 +58,7 @@ const AppContent: React.FC = () => {
       <Route path="/" element={
         <ProtectedRoute>
           <Layout title="Dashboard">
-            {user?.role === 'ADMIN' ? <DashboardAdmin/> : <Dashboard />}
+            {user?.role === 'ADMIN' ? <DashboardAdmin/> : <DashboardUser />}
           </Layout>
         </ProtectedRoute>
       } />
@@ -116,6 +113,15 @@ const AppContent: React.FC = () => {
         </ProtectedRoute>
       } />
       
+      {/* User Dashboard específico */}
+      <Route path="/user/dashboard" element={
+        <ProtectedRoute>
+          <Layout title="Dashboard">
+            <DashboardUser />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      
       {/* User Routes */}
       <Route path="/user/criar-reserva" element={
         <ProtectedRoute>
@@ -165,6 +171,22 @@ const AppContent: React.FC = () => {
         </ProtectedRoute>
       } />
       
+      <Route path="/user/solicitar-manutencao" element={
+        <ProtectedRoute>
+          <Layout title="Solicitar Manutenção">
+            <Manutencao />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/user/solicitar-limpeza" element={
+        <ProtectedRoute>
+          <Layout title="Solicitar Limpeza">
+            <SolicitarLimpeza />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      
       <Route path="/user/pagamento" element={
         <ProtectedRoute>
           <Layout title="Pagamento">
@@ -193,14 +215,6 @@ const AppContent: React.FC = () => {
         <ProtectedRoute>
           <Layout title="Editar Cliente">
             <EditarCliente />
-          </Layout>
-        </ProtectedRoute>
-      } />
-      
-      <Route path="/user/limpeza" element={
-        <ProtectedRoute>
-          <Layout title="Solicitar Limpeza">
-            <SolicitarLimpeza />
           </Layout>
         </ProtectedRoute>
       } />

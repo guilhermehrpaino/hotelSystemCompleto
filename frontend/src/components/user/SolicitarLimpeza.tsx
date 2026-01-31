@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { quartoService, QuartoResponse } from '../../services/api';
 import { getTipoQuarto } from '../../utils/quartoUtils';
 import ErrorModal from '../common/ErrorModal';
@@ -12,12 +12,13 @@ interface LimpezaData {
 
 const SolicitarLimpeza: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const quartoIdFromUrl = searchParams.get('quartoId');
+  const location = useLocation();
+  const state = location.state as { quartoId?: number; quartoNumero?: number } || {};
   
   const [quartos, setQuartos] = useState<QuartoResponse[]>([]);
+  const [quartoSelecionado, setQuartoSelecionado] = useState<QuartoResponse | null>(null);
   const [formData, setFormData] = useState<LimpezaData>({
-    quartoId: quartoIdFromUrl ? parseInt(quartoIdFromUrl) : 0,
+    quartoId: state.quartoId || 0,
     observacoes: ''
   });
   
@@ -29,6 +30,16 @@ const SolicitarLimpeza: React.FC = () => {
   useEffect(() => {
     carregarQuartos();
   }, []);
+
+  useEffect(() => {
+    if (state.quartoId && quartos.length > 0) {
+      const quarto = quartos.find(q => q.id === state.quartoId);
+      if (quarto) {
+        setQuartoSelecionado(quarto);
+        setFormData(prev => ({ ...prev, quartoId: quarto.id }));
+      }
+    }
+  }, [state.quartoId, quartos]);
 
   const carregarQuartos = async () => {
     try {
@@ -96,6 +107,40 @@ const SolicitarLimpeza: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Solicitar Limpeza</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
+            Selecione um quarto para solicitar serviço de limpeza.
+          </p>
+        </div>
+
+        {/* Selected Room Info */}
+        {quartoSelecionado && (
+          <div className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900 dark:to-purple-800 rounded-xl shadow-lg p-6 border border-purple-200 dark:border-purple-700 mb-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-100 mb-2">
+                  Quarto Selecionado
+                </h3>
+                <div className="space-y-1">
+                  <p className="text-purple-700 dark:text-purple-300">
+                    <span className="font-medium">Quarto:</span> {quartoSelecionado.numero}
+                  </p>
+                  <p className="text-purple-700 dark:text-purple-300">
+                    <span className="font-medium">Tipo:</span> {getTipoQuarto(parseInt(quartoSelecionado.numero.toString()))}
+                  </p>
+                  <p className="text-purple-700 dark:text-purple-300">
+                    <span className="font-medium">Diária:</span> {quartoSelecionado.diaria.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </p>
+                </div>
+              </div>
+              <div className="bg-purple-500 bg-opacity-20 rounded-full p-4">
+                <span className="text-3xl">🧹</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -118,7 +163,12 @@ const SolicitarLimpeza: React.FC = () => {
               <select
                 value={formData.quartoId}
                 onChange={(e) => setFormData({ ...formData, quartoId: parseInt(e.target.value) })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                disabled={quartoSelecionado !== null}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white ${
+                  quartoSelecionado !== null 
+                    ? 'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 cursor-not-allowed' 
+                    : 'border-gray-300 dark:border-gray-600'
+                }`}
                 required
               >
                 <option value="">Selecione um quarto...</option>
@@ -128,7 +178,12 @@ const SolicitarLimpeza: React.FC = () => {
                   </option>
                 ))}
               </select>
-              {quartosDisponiveis.length === 0 && (
+              {quartoSelecionado && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Quarto pré-selecionado não pode ser alterado
+                </p>
+              )}
+              {quartosDisponiveis.length === 0 && !quartoSelecionado && (
                 <p className="text-sm text-yellow-500 mt-1">
                   Nenhum quarto disponível para limpeza no momento.
                 </p>
