@@ -1,4 +1,4 @@
-#  Hotel Management API REST
+# Hotel Management API REST
 
 **Hotel Management API REST** é uma API completa desenvolvida em **Java com Spring Boot** para gerenciar as funcionalidades principais de um hotel: cadastro de clientes, quartos, reservas, check-in/check-out, pagamentos e mais.
 Esse projeto voltado para portfólio pessoal, praticar boas práticas, estudar Java e suas tecnologias e demonstração de arquitetura real de backend RESTful.
@@ -7,7 +7,7 @@ Esse projeto voltado para portfólio pessoal, praticar boas práticas, estudar J
 
 ---
 
-##  Tecnologias Utilizadas
+## ✍ Tecnologias Utilizadas
 
 | Camada             | Tecnologia                       |
 | ------------------ | -------------------------------- |
@@ -37,7 +37,7 @@ A arquitetura segue os padrões mais usados no mercado:
 
 ---
 
-## Estrutura do Projeto
+## 📂 Estrutura do Projeto
 
 ```
 hotelSystemCompleto/
@@ -59,7 +59,7 @@ hotelSystemCompleto/
 
 ## 🧠 Endpoints Principais
 
-### Clientes
+### 🙎‍♂️ Clientes
 
 ```
 POST /api/clientes
@@ -69,7 +69,7 @@ PUT /api/clientes/{id}
 DELETE /api/clientes/{id}
 ```
 
-### Quartos
+### 🛏 Quartos
 
 ```
 POST /api/quartos
@@ -83,7 +83,7 @@ PUT /api/quartos/{id}/status
 DELETE /api/quartos/{id}
 ```
 
-### Reservas
+### 🎫 Reservas
 
 ```
 POST /api/reservas/processar-status-quartos
@@ -150,7 +150,7 @@ http://localhost:8080
 
 ---
 
-## Melhorias que pretendo fazer no Futuro
+## 📚 Melhorias que pretendo fazer no Futuro
 
 - Autenticação com JWT e roles (ADMIN / RECEPÇÃO)
 - Testes unitários e de integração (JUnit, Mockito)
@@ -158,7 +158,7 @@ http://localhost:8080
 
 ---
 
-## Boas práticas que busquei utilizar: 
+## 😁 Boas práticas que busquei utilizar: 
 
 ✔ Arquitetura em camadas (Controller/Service/Repository)
 ✔ API RESTful padrão mercado
