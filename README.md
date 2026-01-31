@@ -161,9 +161,13 @@ http://localhost:8080
 ## 😁 Boas práticas que busquei utilizar: 
 
 ✔ Arquitetura em camadas (Controller/Service/Repository)
+
 ✔ API RESTful padrão mercado
+
 ✔ Tratamento global de erros
+
 ✔ Design DTO para cada caso de uso
+
 ✔ Pronto para evoluir para produção
 
 ---
