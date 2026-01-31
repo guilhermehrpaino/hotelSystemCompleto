@@ -1,7 +1,7 @@
 #  Hotel Management API REST
 
 **Hotel Management API REST** é uma API completa desenvolvida em **Java com Spring Boot** para gerenciar as funcionalidades principais de um hotel: cadastro de clientes, quartos, reservas, check-in/check-out, pagamentos e mais.
-Esse projeto é ideal para portfólio, estudos e demonstração de arquitetura real de backend RESTful.
+Esse projeto voltado para portfólio pessoal, praticar boas práticas, estudar Java e suas tecnologias e demonstração de arquitetura real de backend RESTful.
 
 🔗 Repositório: [https://github.com/guilhermehrpaino/hotelSystemCompleto](https://github.com/guilhermehrpaino/hotelSystemCompleto) ([GitHub][1])
 
